@@ -1,0 +1,38 @@
+/// チャット会話セッション
+///
+/// @namespace Chat
+/// @namespace Overview
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("conversations")
+}
+
+/// メッセージの送信者ロール
+enum MessageRole {
+  user
+  assistant
+
+  @@map("message_role")
+}
+
+/// チャットメッセージ
+///
+/// @namespace Chat
+/// @namespace Overview
+model Message {
+  id             String                       @id @default(cuid())
+  conversationId String                       @map("conversation_id")
+  conversation   Conversation                 @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String
+  embedding      Unsupported("vector(3072)")? @map("embedding")
+  createdAt      DateTime                     @default(now()) @map("created_at")
+
+  @@map("messages")
+}

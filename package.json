@@ -6,7 +6,6 @@
 		"bun": ">=1.0.0"
 	},
 	"scripts": {
-		"preinstall": "case \"$npm_config_user_agent\" in bun*) ;; *) echo 'Error: This project requires Bun. Install: https://bun.sh' >&2; exit 1;; esac",
 		"dev": "vite --mode ssr",
 		"build": "qwik build",
 		"build.client": "vite build",
