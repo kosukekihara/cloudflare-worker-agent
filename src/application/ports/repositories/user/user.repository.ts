@@ -43,6 +43,14 @@ export interface UserRepository {
 	findAll(): Promise<UserRecord[]>;
 
 	/**
+	 * メールアドレスでユーザーを検索する
+	 *
+	 * @param email メールアドレス
+	 * @returns ユーザーデータ。見つからない場合は null
+	 */
+	findByEmail(email: string): Promise<UserRecord | null>;
+
+	/**
 	 * ID でユーザーを削除する
 	 *
 	 * @param id ユーザー ID

@@ -42,6 +42,19 @@ export class PrismaUserRepository implements UserRepository {
 		return record;
 	}
 
+	public async findByEmail(email: string): Promise<UserRecord | null> {
+		const record = await this.prisma.user.findFirst({
+			select: USER_SELECT,
+			where: { email },
+		});
+
+		if (!record) {
+			return null;
+		}
+
+		return record;
+	}
+
 	public async findAll(): Promise<UserRecord[]> {
 		return this.prisma.user.findMany({
 			select: USER_SELECT,

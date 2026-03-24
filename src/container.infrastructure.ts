@@ -1,11 +1,20 @@
 import { PrismaClient } from '@prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { createContainer } from 'katagami';
+import type { ChatIntegration } from '~/application/ports/integrations/chat/chat.integration';
+import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
+import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import type { UserRepository } from '~/application/ports/repositories/user/user.repository';
+import { OpenAIChatIntegration } from '~/infrastructure/integrations/chat/openai.integration';
+import { PrismaConversationRepository } from '~/infrastructure/repositories/conversation/conversation.repository';
+import { PrismaMessageRepository } from '~/infrastructure/repositories/message/message.repository';
 import { PrismaUserRepository } from '~/infrastructure/repositories/user/user.repository';
 
 /** Infrastructure 層のトークン型マップ */
 export interface InfrastructureService {
+	ChatIntegration: ChatIntegration;
+	ConversationRepository: ConversationRepository;
+	MessageRepository: MessageRepository;
 	UserRepository: UserRepository;
 }
 
@@ -37,8 +46,9 @@ const createPrismaClient: (databaseUrl: string) => PrismaClient = (() => {
 export function buildInfrastructureContainer(env: Env) {
 	const prismaClient = createPrismaClient(env.DATABASE_URL);
 
-	return createContainer<InfrastructureService>().registerSingleton(
-		'UserRepository',
-		() => new PrismaUserRepository(prismaClient),
-	);
+	return createContainer<InfrastructureService>()
+		.registerSingleton('UserRepository', () => new PrismaUserRepository(prismaClient))
+		.registerSingleton('ConversationRepository', () => new PrismaConversationRepository(prismaClient))
+		.registerSingleton('MessageRepository', () => new PrismaMessageRepository(prismaClient))
+		.registerSingleton('ChatIntegration', () => new OpenAIChatIntegration(env.OPENAI_API_KEY));
 }

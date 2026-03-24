@@ -18,10 +18,12 @@ export const ChatDrawer = component$(() => {
 		},
 	]);
 	const inputValue = useSignal('');
+	const conversationId = useSignal<string | null>(null);
+	const isStreaming = useSignal(false);
 
-	const sendMessage$ = $(() => {
+	const sendMessage$ = $(async () => {
 		const content = inputValue.value.trim();
-		if (!content) {
+		if (!content || isStreaming.value) {
 			return;
 		}
 
@@ -31,16 +33,91 @@ export const ChatDrawer = component$(() => {
 			content,
 		};
 
-		messages.value = [...messages.value, userMessage];
-		inputValue.value = '';
-
-		// TODO: バックエンド実装後にAI応答を取得する
-		const stubReply: Message = {
-			id: crypto.randomUUID(),
+		const assistantMessageId = crypto.randomUUID();
+		const assistantPlaceholder: Message = {
+			id: assistantMessageId,
 			role: 'assistant',
-			content: '（AIの応答はバックエンド実装後に有効になります）',
+			content: '',
 		};
-		messages.value = [...messages.value, stubReply];
+
+		messages.value = [...messages.value, userMessage, assistantPlaceholder];
+		inputValue.value = '';
+		isStreaming.value = true;
+
+		try {
+			const response = await fetch('/api/chat', {
+				body: JSON.stringify({ content, conversationId: conversationId.value }),
+				headers: { 'Content-Type': 'application/json' },
+				method: 'POST',
+			});
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error('レスポンスストリームを取得できませんでした');
+			}
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) {
+					break;
+				}
+
+				buffer += decoder.decode(value, { stream: true });
+				const lines = buffer.split('\n');
+				buffer = lines.pop() ?? '';
+
+				for (const line of lines) {
+					if (!line.startsWith('data: ')) {
+						continue;
+					}
+
+					try {
+						const data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+
+						if (data.type === 'conversation' && typeof data.conversationId === 'string') {
+							conversationId.value = data.conversationId;
+						} else if (data.type === 'chunk' && typeof data.text === 'string') {
+							messages.value = messages.value.map(m => {
+								if (m.id === assistantMessageId) {
+									return { ...m, content: m.content + data.text };
+								}
+								return m;
+							});
+						} else if (data.type === 'done') {
+							isStreaming.value = false;
+						} else if (data.type === 'error' && typeof data.message === 'string') {
+							messages.value = messages.value.map(m => {
+								if (m.id === assistantMessageId) {
+									return { ...m, content: `エラーが発生しました: ${data.message}` };
+								}
+								return m;
+							});
+							isStreaming.value = false;
+						}
+					} catch {
+						// JSON パース失敗は無視する
+					}
+				}
+			}
+		} catch (error) {
+			const errorMessage = (() => {
+				if (error instanceof Error) {
+					return error.message;
+				} else {
+					return String(error);
+				}
+			})();
+			messages.value = messages.value.map(m => {
+				if (m.id === assistantMessageId) {
+					return { ...m, content: `エラーが発生しました: ${errorMessage}` };
+				}
+				return m;
+			});
+			isStreaming.value = false;
+		}
 	});
 
 	const handleKeyDown$ = $((event: KeyboardEvent) => {
@@ -175,6 +252,7 @@ export const ChatDrawer = component$(() => {
 				<div class={styles.drawerInputArea}>
 					<textarea
 						class={styles.drawerTextarea}
+						disabled={isStreaming.value}
 						onInput$={(_, el) => {
 							inputValue.value = el.value;
 						}}
@@ -186,7 +264,7 @@ export const ChatDrawer = component$(() => {
 					<button
 						aria-label="送信"
 						class={styles.drawerSend}
-						disabled={!inputValue.value.trim()}
+						disabled={!inputValue.value.trim() || isStreaming.value}
 						onClick$={sendMessage$}
 						type="button"
 					>
