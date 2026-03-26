@@ -5,6 +5,7 @@ interface Message {
 	id: string;
 	role: 'user' | 'assistant';
 	content: string;
+	toolIndicator?: string;
 }
 
 /** 画面右に固定されるAIチャットドロワー */
@@ -83,6 +84,32 @@ export const ChatDrawer = component$(() => {
 							messages.value = messages.value.map(m => {
 								if (m.id === assistantMessageId) {
 									return { ...m, content: m.content + data.text };
+								}
+								return m;
+							});
+						} else if (data.type === 'tool_call' && typeof data.toolName === 'string') {
+							const indicator = (() => {
+								if (data.toolName === 'currentTime') {
+									return '現在時刻を確認しています...';
+								} else if (data.toolName === 'weather') {
+									return '天気情報を取得しています...';
+								} else {
+									return '住所を調べています...';
+								}
+							})();
+							messages.value = messages.value.map(m => {
+								if (m.id === assistantMessageId) {
+									return { ...m, toolIndicator: indicator };
+								}
+								return m;
+							});
+						} else if (data.type === 'tool_result') {
+							messages.value = messages.value.map(m => {
+								if (m.id === assistantMessageId) {
+									// exactOptionalPropertyTypes のため spread では undefined を設定できない
+									// destructuring でプロパティを除去する
+									const { toolIndicator: _removed, ...rest } = m;
+									return rest;
 								}
 								return m;
 							});
@@ -242,7 +269,10 @@ export const ChatDrawer = component$(() => {
 						return (
 							<div class={messageClass} key={message.id}>
 								{message.role === 'assistant' && <div class={styles.messageAvatar} />}
-								<div class={styles.messageBubble}>{message.content}</div>
+								<div class={styles.messageBubble}>
+									{message.toolIndicator !== undefined && <p>{message.toolIndicator}</p>}
+									{message.content}
+								</div>
 							</div>
 						);
 					})}

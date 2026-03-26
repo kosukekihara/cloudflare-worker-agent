@@ -32,8 +32,14 @@ export const onPost: RequestHandler = async requestEvent => {
 
 			const sendUseCase = container.resolve('SendChatMessageUseCase');
 
-			for await (const chunk of sendUseCase.execute({ content: body.content, conversationId })) {
-				await writer.write(sseData({ text: chunk, type: 'chunk' }));
+			for await (const event of sendUseCase.execute({ content: body.content, conversationId })) {
+				if (event.type === 'text') {
+					await writer.write(sseData({ text: event.text, type: 'chunk' }));
+				} else if (event.type === 'tool_call') {
+					await writer.write(sseData({ toolName: event.toolName, type: 'tool_call' }));
+				} else if (event.type === 'tool_result') {
+					await writer.write(sseData({ result: event.result, toolName: event.toolName, type: 'tool_result' }));
+				}
 			}
 
 			await writer.write(sseData({ type: 'done' }));
@@ -57,7 +63,7 @@ export const onPost: RequestHandler = async requestEvent => {
 		new Response(readable, {
 			headers: {
 				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
+				Connection: 'keep-alive',
 				'Content-Type': 'text/event-stream',
 			},
 			status: 200,

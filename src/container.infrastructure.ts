@@ -2,10 +2,14 @@ import { PrismaClient } from '@prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { createContainer } from 'katagami';
 import type { ChatIntegration } from '~/application/ports/integrations/chat/chat.integration';
+import type { PostalCodeIntegration } from '~/application/ports/integrations/postal-code/postal-code.integration';
+import type { WeatherIntegration } from '~/application/ports/integrations/weather/weather.integration';
 import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import type { UserRepository } from '~/application/ports/repositories/user/user.repository';
 import { OpenAIChatIntegration } from '~/infrastructure/integrations/chat/openai.integration';
+import { ZipCloudPostalCodeIntegration } from '~/infrastructure/integrations/postal-code/zipcloud.integration';
+import { WttrInWeatherIntegration } from '~/infrastructure/integrations/weather/wttrin.integration';
 import { PrismaConversationRepository } from '~/infrastructure/repositories/conversation/conversation.repository';
 import { PrismaMessageRepository } from '~/infrastructure/repositories/message/message.repository';
 import { PrismaUserRepository } from '~/infrastructure/repositories/user/user.repository';
@@ -15,7 +19,9 @@ export interface InfrastructureService {
 	ChatIntegration: ChatIntegration;
 	ConversationRepository: ConversationRepository;
 	MessageRepository: MessageRepository;
+	PostalCodeIntegration: PostalCodeIntegration;
 	UserRepository: UserRepository;
+	WeatherIntegration: WeatherIntegration;
 }
 
 /** DATABASE_URL のプロトコルに応じた PrismaClient を生成し、URL ごとに isolate 内でキャッシュする */
@@ -50,5 +56,15 @@ export function buildInfrastructureContainer(env: Env) {
 		.registerSingleton('UserRepository', () => new PrismaUserRepository(prismaClient))
 		.registerSingleton('ConversationRepository', () => new PrismaConversationRepository(prismaClient))
 		.registerSingleton('MessageRepository', () => new PrismaMessageRepository(prismaClient))
-		.registerSingleton('ChatIntegration', () => new OpenAIChatIntegration(env.OPENAI_API_KEY));
+		.registerSingleton('PostalCodeIntegration', () => new ZipCloudPostalCodeIntegration())
+		.registerSingleton('WeatherIntegration', () => new WttrInWeatherIntegration())
+		.registerSingleton(
+			'ChatIntegration',
+			r =>
+				new OpenAIChatIntegration(
+					env.OPENAI_API_KEY,
+					r.resolve('PostalCodeIntegration'),
+					r.resolve('WeatherIntegration'),
+				),
+		);
 }

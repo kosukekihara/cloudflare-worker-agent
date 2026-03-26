@@ -1,4 +1,8 @@
-import type { ChatIntegration, ChatIntegrationMessage } from '~/application/ports/integrations/chat/chat.integration';
+import type {
+	ChatIntegration,
+	ChatIntegrationMessage,
+	ChatStreamEvent,
+} from '~/application/ports/integrations/chat/chat.integration';
 import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import { ConversationNotFoundError } from '~/domain/errors/conversation-not-found.error';
@@ -33,7 +37,7 @@ export class SendChatMessageUseCase {
 		this.chatIntegration = chatIntegration;
 	}
 
-	public async *execute(input: SendChatMessageInput): AsyncGenerator<string, void, unknown> {
+	public async *execute(input: SendChatMessageInput): AsyncGenerator<ChatStreamEvent, void, unknown> {
 		const conversation = await this.conversationRepository.findById(input.conversationId);
 		if (!conversation) {
 			throw new ConversationNotFoundError(`Conversation with id "${input.conversationId}" not found`);
@@ -57,9 +61,11 @@ export class SendChatMessageUseCase {
 
 		const chunks: string[] = [];
 
-		for await (const chunk of this.chatIntegration.streamReply(messages)) {
-			chunks.push(chunk);
-			yield chunk;
+		for await (const event of this.chatIntegration.streamReply(messages)) {
+			yield event;
+			if (event.type === 'text') {
+				chunks.push(event.text);
+			}
 		}
 
 		await this.messageRepository.save({
