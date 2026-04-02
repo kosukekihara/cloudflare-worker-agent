@@ -39,7 +39,7 @@ async function buildContainer(env: Env) {
 	const { buildInfrastructureContainer } = await import('~/container.infrastructure');
 	const infrastructureContainer = buildInfrastructureContainer(env);
 	const interfaceContainer = buildInterfaceContainer();
-	const applicationContainer = buildApplicationContainer();
+	const applicationContainer = buildApplicationContainer(env);
 
 	const container = createContainer<Service>()
 		.use(infrastructureContainer)

@@ -1,4 +1,5 @@
 import { $, component$, useSignal } from '@builder.io/qwik';
+import { useNavigate } from '@builder.io/qwik-city';
 import styles from './ChatDrawer.module.css';
 
 interface Message {
@@ -10,6 +11,7 @@ interface Message {
 
 /** 画面右に固定されるAIチャットドロワー */
 export const ChatDrawer = component$(() => {
+	const nav = useNavigate();
 	const isOpen = useSignal(false);
 	const messages = useSignal<Message[]>([
 		{
@@ -89,10 +91,16 @@ export const ChatDrawer = component$(() => {
 							});
 						} else if (data.type === 'tool_call' && typeof data.toolName === 'string') {
 							const indicator = (() => {
-								if (data.toolName === 'currentTime') {
-									return '現在時刻を確認しています...';
-								} else if (data.toolName === 'weather') {
+								if (data.toolName === 'weather') {
 									return '天気情報を取得しています...';
+								} else if (data.toolName === 'createUser') {
+									return 'ユーザーを作成しています...';
+								} else if (data.toolName === 'getUsers') {
+									return 'ユーザー一覧を取得しています...';
+								} else if (data.toolName === 'updateUser') {
+									return 'ユーザーを更新しています...';
+								} else if (data.toolName === 'deleteUser') {
+									return 'ユーザーを削除しています...';
 								} else {
 									return '住所を調べています...';
 								}
@@ -113,6 +121,10 @@ export const ChatDrawer = component$(() => {
 								}
 								return m;
 							});
+							// ユーザーデータを変更するツールの完了後にルートローダーを再実行して UI を更新する
+							if (data.toolName === 'createUser' || data.toolName === 'updateUser' || data.toolName === 'deleteUser') {
+								await nav();
+							}
 						} else if (data.type === 'done') {
 							isStreaming.value = false;
 						} else if (data.type === 'error' && typeof data.message === 'string') {
@@ -147,56 +159,13 @@ export const ChatDrawer = component$(() => {
 		}
 	});
 
+	// isComposing が true の間は IME 変換中のため送信しない (変換確定後の Enter で送信)
 	const handleKeyDown$ = $((event: KeyboardEvent) => {
-		if (event.key === 'Enter' && !event.shiftKey) {
+		if (event.key === 'Enter' && !event.isComposing) {
 			event.preventDefault();
 			sendMessage$();
 		}
 	});
-
-	const toggleLabel = (() => {
-		if (isOpen.value) {
-			return 'チャットを閉じる';
-		} else {
-			return 'AIチャットを開く';
-		}
-	})();
-
-	const toggleIcon = (() => {
-		if (isOpen.value) {
-			return (
-				<svg
-					aria-hidden="true"
-					fill="none"
-					height="20"
-					stroke="currentColor"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					viewBox="0 0 24 24"
-					width="20"
-				>
-					<path d="M18 6L6 18M6 6l12 12" />
-				</svg>
-			);
-		} else {
-			return (
-				<svg
-					aria-hidden="true"
-					fill="none"
-					height="20"
-					stroke="currentColor"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					viewBox="0 0 24 24"
-					width="20"
-				>
-					<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-				</svg>
-			);
-		}
-	})();
 
 	const drawerClass = (() => {
 		if (isOpen.value) {
@@ -208,17 +177,31 @@ export const ChatDrawer = component$(() => {
 
 	return (
 		<>
-			{/* トグルボタン */}
-			<button
-				aria-label={toggleLabel}
-				class={styles.toggleButton}
-				onClick$={() => {
-					isOpen.value = !isOpen.value;
-				}}
-				type="button"
-			>
-				{toggleIcon}
-			</button>
+			{/* トグルボタン: ドロワーが開いているときは非表示 (ヘッダーの閉じるボタンを使用する) */}
+			{!isOpen.value && (
+				<button
+					aria-label="AIチャットを開く"
+					class={styles.toggleButton}
+					onClick$={() => {
+						isOpen.value = true;
+					}}
+					type="button"
+				>
+					<svg
+						aria-hidden="true"
+						fill="none"
+						height="20"
+						stroke="currentColor"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						viewBox="0 0 24 24"
+						width="20"
+					>
+						<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+					</svg>
+				</button>
+			)}
 
 			{/* ドロワー */}
 			<aside aria-label="AIチャット" class={drawerClass}>
@@ -287,7 +270,7 @@ export const ChatDrawer = component$(() => {
 							inputValue.value = el.value;
 						}}
 						onKeyDown$={handleKeyDown$}
-						placeholder="メッセージを入力... (Shift+Enter で改行)"
+						placeholder="メッセージを入力..."
 						rows={1}
 						value={inputValue.value}
 					/>

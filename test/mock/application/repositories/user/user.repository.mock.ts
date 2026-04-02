@@ -9,5 +9,6 @@ export function createMockUserRepository(): UserRepository {
 		findByEmail: vi.fn(),
 		findById: vi.fn(),
 		save: vi.fn(),
+		updateById: vi.fn(),
 	};
 }

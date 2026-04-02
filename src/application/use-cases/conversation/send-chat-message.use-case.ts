@@ -3,6 +3,7 @@ import type {
 	ChatIntegrationMessage,
 	ChatStreamEvent,
 } from '~/application/ports/integrations/chat/chat.integration';
+import type { EmbeddingIntegration } from '~/application/ports/integrations/embedding/embedding.integration';
 import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import { ConversationNotFoundError } from '~/domain/errors/conversation-not-found.error';
@@ -15,10 +16,10 @@ export interface SendChatMessageInput {
 /**
  * ユーザーメッセージを送信し AI 応答をストリーミングで返すユースケース
  *
- * - ユーザーメッセージを DB に保存する
+ * - ユーザーメッセージを DB に保存し、埋め込みベクトルを生成して更新する
  * - 会話履歴をもとに LLM にストリーミングで問い合わせる
  * - 各テキストチャンクを yield する
- * - ストリーム完了後、AI 応答全文を DB に保存する
+ * - ストリーム完了後、AI 応答全文を DB に保存し、埋め込みベクトルを生成して更新する
  *
  * @throws ConversationNotFoundError 指定 ID の会話が存在しない場合
  */
@@ -26,15 +27,18 @@ export class SendChatMessageUseCase {
 	private readonly conversationRepository: ConversationRepository;
 	private readonly messageRepository: MessageRepository;
 	private readonly chatIntegration: ChatIntegration;
+	private readonly embeddingIntegration: EmbeddingIntegration;
 
 	public constructor(
 		conversationRepository: ConversationRepository,
 		messageRepository: MessageRepository,
 		chatIntegration: ChatIntegration,
+		embeddingIntegration: EmbeddingIntegration,
 	) {
 		this.conversationRepository = conversationRepository;
 		this.messageRepository = messageRepository;
 		this.chatIntegration = chatIntegration;
+		this.embeddingIntegration = embeddingIntegration;
 	}
 
 	public async *execute(input: SendChatMessageInput): AsyncGenerator<ChatStreamEvent, void, unknown> {
@@ -45,11 +49,14 @@ export class SendChatMessageUseCase {
 
 		const existingMessages = await this.messageRepository.findByConversationId(input.conversationId);
 
-		await this.messageRepository.save({
+		const userRecord = await this.messageRepository.save({
 			content: input.content,
 			conversationId: input.conversationId,
 			role: 'user',
 		});
+
+		const userEmbedding = await this.embeddingIntegration.embed(input.content);
+		await this.messageRepository.updateEmbedding(userRecord.id, userEmbedding);
 
 		const history: ChatIntegrationMessage[] = existingMessages.map(m => ({
 			content: m.content,
@@ -68,10 +75,15 @@ export class SendChatMessageUseCase {
 			}
 		}
 
-		await this.messageRepository.save({
-			content: chunks.join(''),
+		const assistantContent = chunks.join('');
+
+		const assistantRecord = await this.messageRepository.save({
+			content: assistantContent,
 			conversationId: input.conversationId,
 			role: 'assistant',
 		});
+
+		const assistantEmbedding = await this.embeddingIntegration.embed(assistantContent);
+		await this.messageRepository.updateEmbedding(assistantRecord.id, assistantEmbedding);
 	}
 }

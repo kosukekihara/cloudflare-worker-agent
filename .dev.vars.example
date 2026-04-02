@@ -4,3 +4,8 @@ DIRECT_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres?schem
 
 # OpenAI
 OPENAI_API_KEY=
+
+# Google AI Studio
+GOOGLE_AI_STUDIO_API_KEY=
+
+GOOGLE_GENERATIVE_AI_API_KEY=

@@ -51,6 +51,15 @@ export interface UserRepository {
 	findByEmail(email: string): Promise<UserRecord | null>;
 
 	/**
+	 * ID でユーザーを更新する
+	 *
+	 * @param id ユーザー ID
+	 * @param data 更新データ
+	 * @returns 更新されたユーザーデータ
+	 */
+	updateById(id: string, data: { email: string }): Promise<UserRecord>;
+
+	/**
 	 * ID でユーザーを削除する
 	 *
 	 * @param id ユーザー ID

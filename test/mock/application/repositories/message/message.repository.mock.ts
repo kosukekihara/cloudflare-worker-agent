@@ -6,5 +6,7 @@ export function createMockMessageRepository(): MessageRepository {
 	return {
 		findByConversationId: vi.fn(),
 		save: vi.fn(),
+		searchSimilar: vi.fn().mockResolvedValue([]),
+		updateEmbedding: vi.fn(),
 	};
 }

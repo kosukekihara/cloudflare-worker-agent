@@ -1,13 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
 import { createContainer } from 'katagami';
-import type { ChatIntegration } from '~/application/ports/integrations/chat/chat.integration';
+import type { EmbeddingIntegration } from '~/application/ports/integrations/embedding/embedding.integration';
 import type { PostalCodeIntegration } from '~/application/ports/integrations/postal-code/postal-code.integration';
 import type { WeatherIntegration } from '~/application/ports/integrations/weather/weather.integration';
 import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import type { UserRepository } from '~/application/ports/repositories/user/user.repository';
-import { OpenAIChatIntegration } from '~/infrastructure/integrations/chat/openai.integration';
+import { GeminiEmbeddingIntegration } from '~/infrastructure/integrations/embedding/gemini.integration';
 import { ZipCloudPostalCodeIntegration } from '~/infrastructure/integrations/postal-code/zipcloud.integration';
 import { WttrInWeatherIntegration } from '~/infrastructure/integrations/weather/wttrin.integration';
 import { PrismaConversationRepository } from '~/infrastructure/repositories/conversation/conversation.repository';
@@ -16,8 +16,8 @@ import { PrismaUserRepository } from '~/infrastructure/repositories/user/user.re
 
 /** Infrastructure 層のトークン型マップ */
 export interface InfrastructureService {
-	ChatIntegration: ChatIntegration;
 	ConversationRepository: ConversationRepository;
+	EmbeddingIntegration: EmbeddingIntegration;
 	MessageRepository: MessageRepository;
 	PostalCodeIntegration: PostalCodeIntegration;
 	UserRepository: UserRepository;
@@ -58,13 +58,5 @@ export function buildInfrastructureContainer(env: Env) {
 		.registerSingleton('MessageRepository', () => new PrismaMessageRepository(prismaClient))
 		.registerSingleton('PostalCodeIntegration', () => new ZipCloudPostalCodeIntegration())
 		.registerSingleton('WeatherIntegration', () => new WttrInWeatherIntegration())
-		.registerSingleton(
-			'ChatIntegration',
-			r =>
-				new OpenAIChatIntegration(
-					env.OPENAI_API_KEY,
-					r.resolve('PostalCodeIntegration'),
-					r.resolve('WeatherIntegration'),
-				),
-		);
+		.registerSingleton('EmbeddingIntegration', () => new GeminiEmbeddingIntegration(env.GOOGLE_AI_STUDIO_API_KEY));
 }

@@ -21,6 +21,13 @@ export interface SaveMessageInput {
 }
 
 /**
+ * 類似度検索結果のメッセージデータ
+ */
+export interface SimilarMessageRecord extends MessageRecord {
+	readonly similarity: number;
+}
+
+/**
  * メッセージリポジトリのインターフェース
  */
 export interface MessageRepository {
@@ -39,4 +46,21 @@ export interface MessageRepository {
 	 * @returns 保存されたメッセージデータ
 	 */
 	save(input: SaveMessageInput): Promise<MessageRecord>;
+
+	/**
+	 * メッセージの埋め込みベクトルを更新する
+	 *
+	 * @param id 対象メッセージ ID
+	 * @param embedding 埋め込みベクトル (3072 次元)
+	 */
+	updateEmbedding(id: string, embedding: number[]): Promise<void>;
+
+	/**
+	 * 埋め込みベクトルで意味的に近いメッセージを検索する
+	 *
+	 * @param embedding 検索クエリの埋め込みベクトル (3072 次元)
+	 * @param limit 返却件数の上限
+	 * @returns 類似度降順のメッセージ配列
+	 */
+	searchSimilar(embedding: number[], limit: number): Promise<SimilarMessageRecord[]>;
 }

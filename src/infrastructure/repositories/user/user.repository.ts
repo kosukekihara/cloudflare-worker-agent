@@ -62,6 +62,14 @@ export class PrismaUserRepository implements UserRepository {
 		});
 	}
 
+	public async updateById(id: string, data: { email: string }): Promise<UserRecord> {
+		return this.prisma.user.update({
+			data: { email: data.email },
+			select: USER_SELECT,
+			where: { id },
+		});
+	}
+
 	public async deleteById(id: string): Promise<void> {
 		await this.prisma.user.delete({ where: { id } });
 	}
