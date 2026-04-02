@@ -15,5 +15,9 @@
 				"matcher": "Write|Edit"
 			}
 		]
+	},
+	"statusLine": {
+		"type": "command",
+		"command": "sh /Users/kihara/Repositories/cloudflare-worker-agent/.claude/statusline-command.sh"
 	}
 }

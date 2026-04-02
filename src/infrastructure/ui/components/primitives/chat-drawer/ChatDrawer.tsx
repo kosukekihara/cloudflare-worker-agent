@@ -1,28 +1,98 @@
-import { $, component$, useSignal } from '@builder.io/qwik';
+import { $, component$, useSignal, useVisibleTask$ } from '@builder.io/qwik';
 import { useNavigate } from '@builder.io/qwik-city';
+import { MarkdownItIntegration } from '~/infrastructure/integrations/markdown/markdown-it.integration';
 import styles from './ChatDrawer.module.css';
 
 interface Message {
 	id: string;
 	role: 'user' | 'assistant';
 	content: string;
+	renderedHtml?: string;
 	toolIndicator?: string;
 }
+
+const markdownIntegration = new MarkdownItIntegration();
+
+const DEFAULT_DRAWER_WIDTH = 360;
+const MIN_DRAWER_WIDTH = 280;
+const DRAWER_WIDTH_STORAGE_KEY = 'chat-drawer-width';
 
 /** 画面右に固定されるAIチャットドロワー */
 export const ChatDrawer = component$(() => {
 	const nav = useNavigate();
 	const isOpen = useSignal(false);
+	const drawerWidth = useSignal(DEFAULT_DRAWER_WIDTH);
+	const isResizing = useSignal(false);
 	const messages = useSignal<Message[]>([
 		{
 			id: '1',
 			role: 'assistant',
 			content: 'こんにちは！何かお手伝いできることはありますか？',
+			renderedHtml: markdownIntegration.render('こんにちは！何かお手伝いできることはありますか？'),
 		},
 	]);
 	const inputValue = useSignal('');
 	const conversationId = useSignal<string | null>(null);
 	const isStreaming = useSignal(false);
+
+	// mermaid ブロックを含むメッセージが追加されたとき、クライアント側で mermaid.run() を実行する
+	useVisibleTask$(({ track }) => {
+		const currentMessages = track(() => messages.value);
+		const hasMermaid = currentMessages.some(m => m.renderedHtml?.includes('class="mermaid"'));
+		if (!hasMermaid) {
+			return;
+		}
+		void import('mermaid').then(({ default: mermaid }) => {
+			mermaid.initialize({ startOnLoad: false, theme: 'default' });
+			mermaid.run();
+		});
+	});
+
+	// localStorage からドロワー幅を復元し、ポインターイベントでリサイズを処理する
+	useVisibleTask$(({ cleanup }) => {
+		const saved = localStorage.getItem(DRAWER_WIDTH_STORAGE_KEY);
+		if (saved !== null) {
+			const parsed = parseInt(saved, 10);
+			if (!Number.isNaN(parsed)) {
+				drawerWidth.value = parsed;
+			}
+		}
+
+		const handlePointerMove = (event: PointerEvent) => {
+			if (!isResizing.value) {
+				return;
+			}
+			const newWidth = window.innerWidth - event.clientX;
+			const maxWidth = Math.floor(window.innerWidth * 0.85);
+			const clamped = Math.max(MIN_DRAWER_WIDTH, Math.min(newWidth, maxWidth));
+			drawerWidth.value = clamped;
+			localStorage.setItem(DRAWER_WIDTH_STORAGE_KEY, String(clamped));
+		};
+
+		const handlePointerUp = () => {
+			if (!isResizing.value) {
+				return;
+			}
+			isResizing.value = false;
+			document.body.style.cursor = '';
+			document.body.style.userSelect = '';
+		};
+
+		document.addEventListener('pointermove', handlePointerMove);
+		document.addEventListener('pointerup', handlePointerUp);
+
+		cleanup(() => {
+			document.removeEventListener('pointermove', handlePointerMove);
+			document.removeEventListener('pointerup', handlePointerUp);
+		});
+	});
+
+	const startResizing$ = $((event: PointerEvent) => {
+		event.preventDefault();
+		isResizing.value = true;
+		document.body.style.cursor = 'ew-resize';
+		document.body.style.userSelect = 'none';
+	});
 
 	const sendMessage$ = $(async () => {
 		const content = inputValue.value.trim();
@@ -126,6 +196,13 @@ export const ChatDrawer = component$(() => {
 								await nav();
 							}
 						} else if (data.type === 'done') {
+							// ストリーミング完了後に全文を Markdown レンダリングして HTML に変換する
+							messages.value = messages.value.map(m => {
+								if (m.id === assistantMessageId && m.role === 'assistant') {
+									return { ...m, renderedHtml: markdownIntegration.render(m.content) };
+								}
+								return m;
+							});
 							isStreaming.value = false;
 						} else if (data.type === 'error' && typeof data.message === 'string') {
 							messages.value = messages.value.map(m => {
@@ -168,11 +245,14 @@ export const ChatDrawer = component$(() => {
 	});
 
 	const drawerClass = (() => {
+		const classes = [styles.drawer];
 		if (isOpen.value) {
-			return [styles.drawer, styles.drawerOpen].join(' ');
-		} else {
-			return styles.drawer;
+			classes.push(styles.drawerOpen);
 		}
+		if (isResizing.value) {
+			classes.push(styles.drawerResizing);
+		}
+		return classes.join(' ');
 	})();
 
 	return (
@@ -204,7 +284,10 @@ export const ChatDrawer = component$(() => {
 			)}
 
 			{/* ドロワー */}
-			<aside aria-label="AIチャット" class={drawerClass}>
+			<aside aria-label="AIチャット" class={drawerClass} style={`--drawer-width: ${drawerWidth.value}px`}>
+				{/* リサイズハンドル: ドロワー左端のドラッグ可能なエリア */}
+				<div aria-hidden="true" class={styles.resizeHandle} onPointerDown$={startResizing$} />
+
 				{/* ヘッダー */}
 				<div class={styles.drawerHeader}>
 					<div class={styles.drawerHeaderInfo}>
@@ -254,7 +337,13 @@ export const ChatDrawer = component$(() => {
 								{message.role === 'assistant' && <div class={styles.messageAvatar} />}
 								<div class={styles.messageBubble}>
 									{message.toolIndicator !== undefined && <p>{message.toolIndicator}</p>}
-									{message.content}
+									{(() => {
+										if (message.renderedHtml !== undefined) {
+											return <div class={styles.markdownContent} dangerouslySetInnerHTML={message.renderedHtml} />;
+										} else {
+											return message.content;
+										}
+									})()}
 								</div>
 							</div>
 						);
