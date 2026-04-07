@@ -7,7 +7,8 @@ import { GetUsersUseCase } from '~/application/use-cases/user/get-users.use-case
 import { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
 import type { InfrastructureService } from '~/container.infrastructure';
-import { OpenAIChatIntegration } from '~/infrastructure/integrations/chat/openai.integration';
+// import { OpenAIChatIntegration } from '~/infrastructure/integrations/chat/openai.integration';
+import { GeminiChatIntegration } from '~/infrastructure/integrations/ai/ai-chat.integration';
 
 /** Application 層のトークン型マップ */
 export interface ApplicationService {
@@ -44,8 +45,19 @@ export function buildApplicationContainer(env: Env) {
 		.registerSingleton(
 			'ChatIntegration',
 			r =>
-				new OpenAIChatIntegration(
-					env.OPENAI_API_KEY,
+				// new OpenAIChatIntegration(
+				// 	env.OPENAI_API_KEY,
+				// 	r.resolve('PostalCodeIntegration'),
+				// 	r.resolve('WeatherIntegration'),
+				// 	r.resolve('RegisterUserUseCase'),
+				// 	r.resolve('GetUsersUseCase'),
+				// 	r.resolve('UpdateUserUseCase'),
+				// 	r.resolve('DeleteUserUseCase'),
+				// 	r.resolve('EmbeddingIntegration'),
+				// 	r.resolve('MessageRepository'),
+				// ),
+				new GeminiChatIntegration(
+					env.GOOGLE_AI_STUDIO_API_KEY,
 					r.resolve('PostalCodeIntegration'),
 					r.resolve('WeatherIntegration'),
 					r.resolve('RegisterUserUseCase'),

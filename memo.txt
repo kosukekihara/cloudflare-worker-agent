@@ -20,3 +20,27 @@ AIチャット機能について、ユーザーが発言した直後と、AIが�
 gemini-embedding-001を利用するので、APIキー用の環境変数を.dev.vars.exampleに作って下さい。キーは後でこちらか
 ら入力します。実装計画を立てて下さい。
 
+後で消す
+/Users/kihara/Repositories/cloudflare-worker-agent/src/infrastructure/integrations/ai/ai-chat.integration.ts
+openaiのモデルのコメントだけ
+
+plugin
+ランゲージサーバーを通して、リントエラーとか出している
+claudeに何条目でエラーがでているか、
+tscでビルド
+もしくはplugin
+
+## エージェントの振る舞いを実装
+
+  ⎿  Plan saved to: ~/.claude/plans/drifting-rolling-kahan.md · /plan to edit
+
+
+生成ロジックでエージェントが切り替えられるようになっていること
+元々streamTextが書いてあった箇所で
+コメントアウトして切り替えができるとこまでがゴール
+１ファイル１エージェントでまとめる
+
+なぜエージェントをわけるか
+全てのプロンプトを一つに入れるのは凡人になる
+ユーザーが質問してその質問に答えてもらうために専用エージェントに任せる
+ツールも制限できる。切り分けることでエージェントの振る舞いをコントロールする
