@@ -27,7 +27,8 @@ export interface GeminiChatToolSetDeps {
  */
 export function buildGeminiChatToolSet(deps: GeminiChatToolSetDeps) {
 	const postalCodeTool = tool({
-		description: '郵便番号から都道府県・市区町村・町域を検索する',
+		description:
+			'ユーザーのメッセージに郵便番号が明示的に含まれている場合にのみ、郵便番号から住所を検索する。ユーザーが住所について質問していない場合は呼び出さない。',
 		inputSchema: zodSchema(
 			z.object({
 				zipCode: z.string().describe('郵便番号 (ハイフンあり・なし両方可。例: 100-0001 または 1000001)'),
@@ -43,7 +44,8 @@ export function buildGeminiChatToolSet(deps: GeminiChatToolSetDeps) {
 	});
 
 	const weatherTool = tool({
-		description: '住所を渡すとその地点付近の現在の天気と気温を返す',
+		description:
+			'ユーザーのメッセージに天気を調べたい地名・住所が明示的に含まれている場合にのみ、その地点の天気と気温を返す。ユーザーが天気について質問していない場合は呼び出さない。',
 		inputSchema: zodSchema(
 			z.object({
 				address: z.string().describe('天気を調べたい住所や地名 (例: 東京都千代田区、大阪城)'),

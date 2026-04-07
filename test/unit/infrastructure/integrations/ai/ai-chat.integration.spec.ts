@@ -314,6 +314,37 @@ describe('GeminiChatIntegration', () => {
 		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
 	});
 
+	// 正常系: gemini_default エージェントに callPraiserAgent と callDenierAgent ツールが組み込まれることを検証する
+	it('should include callPraiserAgent and callDenierAgent tools in gemini_default agent', async () => {
+		setupMockAgent([]);
+
+		createIntegration({}, 'gemini_default');
+
+		// ToolLoopAgent は praiser/denier/main の順に3回呼ばれ、lastCall がメインエージェントを指す
+		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
+			tools?: Record<string, unknown>;
+		};
+		expect(ctorSettings?.tools).toHaveProperty('callPraiserAgent');
+		expect(ctorSettings?.tools).toHaveProperty('callDenierAgent');
+	});
+
+	// 正常系: gemini_default では denier サブエージェントの prepareCall に否定系の性格リテラルが含まれることを検証する
+	it('should include denier personality in prepareCall of denier sub-agent when agent kind is gemini_default', async () => {
+		setupMockAgent([]);
+
+		createIntegration({}, 'gemini_default');
+
+		// gemini_default では ToolLoopAgent が praiser/denier/main の順に3回作られる
+		// 末尾から2番目が denier サブエージェントのコンストラクタ引数
+		const allCalls = vi.mocked(ToolLoopAgent).mock.calls;
+		const denierCtorSettings = allCalls.at(-2)?.[0] as
+			| { prepareCall?: (options: Record<string, unknown>) => { instructions?: string } }
+			| undefined;
+		const prepared = denierCtorSettings?.prepareCall?.({});
+		expect(prepared?.instructions).toContain('否定');
+		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
+	});
+
 	// 正常系: casual エージェントではタメ口の性格リテラルが instructions に含まれることを検証する
 	it('should include casual personality in prepareCall when agent kind is casual', async () => {
 		setupMockAgent([]);

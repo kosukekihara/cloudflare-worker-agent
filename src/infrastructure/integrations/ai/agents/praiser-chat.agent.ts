@@ -13,7 +13,10 @@ const PRAISER_CHAT_PERSONALITY =
 /**
  * 褒めスタイルの Gemini ToolLoopAgent を組み立てる
  */
-export function buildPraiserChatAgent(model: GeminiLanguageModel, tools: GeminiChatTools): ToolLoopStreamAdapter {
+export function buildPraiserChatAgent<TTools extends GeminiChatTools>(
+	model: GeminiLanguageModel,
+	tools: TTools,
+): ToolLoopStreamAdapter {
 	return new ToolLoopAgent({
 		model,
 		stopWhen: stepCountIs(5),

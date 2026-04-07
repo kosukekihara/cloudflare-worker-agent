@@ -14,9 +14,11 @@ import type { GetUsersUseCase } from '~/application/use-cases/user/get-users.use
 import type { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import type { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
 import { buildCasualChatAgent } from '~/infrastructure/integrations/ai/agents/casual-chat.agent';
+import { buildDenierChatAgent } from '~/infrastructure/integrations/ai/agents/denier-chat.agent';
 import { buildGeminiChatAgent } from '~/infrastructure/integrations/ai/agents/gemini-chat.agent';
 import { buildPraiserChatAgent } from '~/infrastructure/integrations/ai/agents/praiser-chat.agent';
 import { ACTIVE_AI_CHAT_AGENT, type AiChatAgentKind } from '~/infrastructure/integrations/ai/ai-chat-agent-kind';
+import { buildSubAgentTool } from '~/infrastructure/integrations/ai/build-sub-agent-tool';
 import { buildGeminiChatToolSet } from '~/infrastructure/integrations/ai/gemini-chat-tool-set';
 import type { ToolLoopStreamAdapter } from '~/infrastructure/integrations/ai/tool-loop-stream.types';
 
@@ -90,7 +92,26 @@ export class GeminiChatIntegration implements ChatIntegration {
 		if (this.agentKind === 'casual') {
 			return buildCasualChatAgent(model, tools);
 		}
-		return buildGeminiChatAgent(model, tools);
+
+		// gemini_default: サブエージェントツールを組み込んだメインエージェントを構築する
+		// サブエージェント自体は baseTools のみ持ち、無限再帰呼び出しを防ぐ
+		const praiserAgent = buildPraiserChatAgent(model, tools);
+		const denierAgent = buildDenierChatAgent(model, tools);
+		const mainTools = {
+			...tools,
+			callPraiserAgent: buildSubAgentTool({
+				name: 'callPraiserAgent',
+				description:
+					'ユーザーの気分が落ち込んでいる・元気がない・励ましや肯定が必要と判断したときに呼び出す全力肯定エージェント',
+				agent: praiserAgent,
+			}),
+			callDenierAgent: buildSubAgentTool({
+				name: 'callDenierAgent',
+				description: 'ユーザーが無礼・失礼・舐めた口をきいていると判断したときに呼び出す全力否定エージェント',
+				agent: denierAgent,
+			}),
+		};
+		return buildGeminiChatAgent(model, mainTools);
 	}
 
 	public async *streamReply(messages: ChatIntegrationMessage[]): AsyncGenerator<ChatStreamEvent, void, unknown> {

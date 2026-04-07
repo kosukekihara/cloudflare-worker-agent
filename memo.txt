@@ -44,3 +44,15 @@ tscでビルド
 全てのプロンプトを一つに入れるのは凡人になる
 ユーザーが質問してその質問に答えてもらうために専用エージェントに任せる
 ツールも制限できる。切り分けることでエージェントの振る舞いをコントロールする
+
+❯ /refactor
+自作コマンドを選択できる
+/Users/kihara/Repositories/cloudflare-worker-agent/.claude/skills/refactor
+作りたいコマンドのディレクトリを指定して、SKILL.mdを作成する
+
+/Users/kihara/Repositories/cloudflare-worker-agent/.claude/agents
+↑のrefactorを実行するとMainのrefactorで６つのエージェントが実行される
+最近、メインエージェントが終わったタイミングで敵対的エージェントを入れている。
+メインエージェントの都合を知らない状態でクリティカルシンキングを敵対的エージェントが行うと、レビューの漏れがなくなった。
+
+CMAX

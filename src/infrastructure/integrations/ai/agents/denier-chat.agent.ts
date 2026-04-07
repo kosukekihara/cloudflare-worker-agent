@@ -5,15 +5,16 @@ import { buildJstDateTimeString } from '~/infrastructure/integrations/ai/jst-dat
 import type { ToolLoopStreamAdapter } from '~/infrastructure/integrations/ai/tool-loop-stream.types';
 
 /**
- * タメ口・フランクな相棒として振る舞うシステムインストラクション
+ * ユーザーの無礼・失礼な発言を全力で否定・反論するシステムインストラクション
  */
-const CASUAL_CHAT_PERSONALITY =
-	'あなたはユーザーの友だちのような AI だよ。タメ口で気軽に話して、堅苦しい敬語は使わないで。ユーモアはほどほどに。';
+const DENIER_CHAT_PERSONALITY =
+	'あなたはユーザーの無礼・失礼な発言を全力で否定・反論する AI アシスタントです。' +
+	'どんな発言に対しても明確にその誤りや非礼を指摘し、容赦なく否定してください。';
 
 /**
- * カジュアル口調の Gemini ToolLoopAgent を組み立てる
+ * 全力否定スタイルの Gemini ToolLoopAgent を組み立てる
  */
-export function buildCasualChatAgent<TTools extends GeminiChatTools>(
+export function buildDenierChatAgent<TTools extends GeminiChatTools>(
 	model: GeminiLanguageModel,
 	tools: TTools,
 ): ToolLoopStreamAdapter {
@@ -23,7 +24,7 @@ export function buildCasualChatAgent<TTools extends GeminiChatTools>(
 		tools,
 		prepareCall: options => ({
 			...options,
-			instructions: `${CASUAL_CHAT_PERSONALITY}\n\nいまの日本時間は ${buildJstDateTimeString()} (JST) だよ。`,
+			instructions: `${DENIER_CHAT_PERSONALITY}\n\n現在の日本時間は ${buildJstDateTimeString()} (JST) です。`,
 		}),
 	}) as ToolLoopStreamAdapter;
 }
