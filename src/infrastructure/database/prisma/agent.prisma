@@ -1,0 +1,15 @@
+/// AIエージェント設定
+///
+/// @namespace Agent
+/// @namespace Overview
+model Agent {
+  id           String   @id @default(cuid()) @map("id")
+  name         String   @map("name")
+  modelId      String   @map("model_id")
+  instruction  String   @map("instruction")
+  enabledTools String[] @map("enabled_tools")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("agents")
+}

@@ -132,6 +132,48 @@
 	background-color: rgb(255 255 255 / 15%);
 }
 
+/* エージェントセレクター: ヘッダー下部に配置 */
+.drawer__agent-select-area {
+	padding: 8px 16px;
+	background-color: #1e293b;
+	border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.drawer__agent-select {
+	width: 100%;
+	padding: 6px 10px;
+	font-size: 13px;
+	color: #ffffff;
+	cursor: pointer;
+	outline: none;
+	background-color: #334155;
+	border: 1px solid rgb(255 255 255 / 15%);
+	border-radius: 6px;
+
+	&:focus {
+		border-color: #0ea5e9;
+	}
+}
+
+.drawer__no-agents {
+	padding: 8px 16px;
+	font-size: 12px;
+	color: #94a3b8;
+	text-align: center;
+	background-color: #1e293b;
+	border-top: 1px solid rgb(255 255 255 / 10%);
+}
+
+.drawer__no-agents-link {
+	margin-left: 4px;
+	color: #38bdf8;
+	text-decoration: underline;
+}
+
+.drawer__no-agents-link:hover {
+	color: #7dd3fc;
+}
+
 /* メッセージエリア: column-reverse で最新メッセージが常に下部に表示される */
 .drawer__messages {
 	display: flex;

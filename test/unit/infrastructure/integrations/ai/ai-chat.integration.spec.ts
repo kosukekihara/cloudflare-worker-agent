@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ToolLoopAgent } from 'ai';
 import { InfrastructureError } from '~/app-kernel/errors/infrastructure.error';
-import type { ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
+import type { ChatAgentConfig, ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
 import type { PostalCodeIntegration } from '~/application/ports/integrations/postal-code/postal-code.integration';
 import type { WeatherIntegration } from '~/application/ports/integrations/weather/weather.integration';
 import type { DeleteUserUseCase } from '~/application/use-cases/user/delete-user.use-case';
@@ -9,7 +9,6 @@ import type { GetUsersUseCase } from '~/application/use-cases/user/get-users.use
 import type { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import type { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
 import { UserNotFoundError } from '~/domain/errors/user-not-found.error';
-import type { AiChatAgentKind } from '~/infrastructure/integrations/ai/ai-chat-agent-kind';
 import { GeminiChatIntegration } from '~/infrastructure/integrations/ai/ai-chat.integration';
 import { createMockEmbeddingIntegration } from '~mock/infrastructure/integrations/embedding/embedding.integration.mock';
 import { createMockMessageRepository } from '~mock/application/repositories/message/message.repository.mock';
@@ -25,6 +24,21 @@ vi.mock('ai', () => ({
 	tool: vi.fn((config: unknown) => config),
 	zodSchema: vi.fn((schema: unknown) => schema),
 }));
+
+/** streamReply テストで全ツールを有効にするエージェント設定 */
+const DEFAULT_TEST_AGENT_CONFIG: ChatAgentConfig = {
+	modelId: 'test-model-id',
+	instruction: 'テスト用アシスタントです。',
+	enabledTools: [
+		'postalCodeLookup',
+		'weather',
+		'createUser',
+		'getUsers',
+		'updateUser',
+		'deleteUser',
+		'searchSimilarMessages',
+	],
+};
 
 /** fullStream 用のストリームパートを生成するヘルパー */
 async function* makeFullStream(parts: Array<Record<string, unknown>>) {
@@ -111,7 +125,6 @@ function createIntegration(
 		embedding?: ReturnType<typeof createMockEmbeddingIntegration>;
 		messageRepo?: ReturnType<typeof createMockMessageRepository>;
 	} = {},
-	agentKind?: AiChatAgentKind,
 ): GeminiChatIntegration {
 	return new GeminiChatIntegration(
 		'test-api-key',
@@ -123,7 +136,6 @@ function createIntegration(
 		overrides.deleteUser ?? createLocalMockDeleteUserUseCase(),
 		overrides.embedding ?? createMockEmbeddingIntegration(),
 		overrides.messageRepo ?? createMockMessageRepository(),
-		agentKind,
 	);
 }
 
@@ -138,7 +150,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -157,7 +169,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -172,7 +184,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -189,7 +201,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -202,7 +214,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -218,7 +230,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -234,7 +246,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -250,7 +262,7 @@ describe('GeminiChatIntegration', () => {
 			{ role: 'user' as const, content: '質問' },
 			{ role: 'assistant' as const, content: '回答' },
 		];
-		for await (const _ of integration.streamReply(messages)) {
+		for await (const _ of integration.streamReply(messages, DEFAULT_TEST_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -270,7 +282,7 @@ describe('GeminiChatIntegration', () => {
 		mockStream.mockRejectedValue(new Error('API 接続エラー'));
 
 		const integration = createIntegration();
-		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }]);
+		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG);
 
 		await expect(gen.next()).rejects.toThrow(InfrastructureError);
 	});
@@ -281,82 +293,49 @@ describe('GeminiChatIntegration', () => {
 		mockStream.mockRejectedValue('string error');
 
 		const integration = createIntegration();
-		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }]);
+		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG);
 
 		await expect(gen.next()).rejects.toThrow(InfrastructureError);
 	});
 
-	// 正常系: prepareCall の instructions に JST 形式の日時文字列が含まれることを検証する (既定エージェント)
-	it('should set prepareCall instructions containing JST datetime', async () => {
+	// 正常系: prepareCall の instructions にエージェント設定と JST 形式の日時が含まれることを検証する
+	it('should set prepareCall instructions containing agent instruction and JST datetime', async () => {
 		setupMockAgent([]);
 
-		createIntegration({}, 'gemini_default');
-
-		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as
-			| { prepareCall?: (options: Record<string, unknown>) => { instructions?: string } }
-			| undefined;
-		// 本番は baseCallArgs をスプレッドするため、空オブジェクトでも instructions のみ検証できる
-		const prepared = ctorSettings?.prepareCall?.({});
-		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
-	});
-
-	// 正常系: praiser エージェントでは称賛系の性格リテラルが instructions に含まれることを検証する
-	it('should include praiser personality in prepareCall when agent kind is praiser', async () => {
-		setupMockAgent([]);
-
-		createIntegration({}, 'praiser');
+		const customInstruction = 'カスタムのシステム指示文';
+		const integration = createIntegration();
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
+			enabledTools: ['postalCodeLookup'],
+			instruction: customInstruction,
+			modelId: 'test-model-id',
+		})) {
+			// drain
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as
 			| { prepareCall?: (options: Record<string, unknown>) => { instructions?: string } }
 			| undefined;
 		const prepared = ctorSettings?.prepareCall?.({});
-		expect(prepared?.instructions).toContain('称賛');
+		expect(prepared?.instructions).toContain(customInstruction);
 		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
 	});
 
-	// 正常系: gemini_default エージェントに callPraiserAgent と callDenierAgent ツールが組み込まれることを検証する
-	it('should include callPraiserAgent and callDenierAgent tools in gemini_default agent', async () => {
+	// 正常系: enabledTools に含まれるツールだけが ToolLoopAgent に渡ることを検証する
+	it('should pass only enabled tools to ToolLoopAgent', async () => {
 		setupMockAgent([]);
 
-		createIntegration({}, 'gemini_default');
+		const integration = createIntegration();
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
+			enabledTools: ['weather'],
+			instruction: 'x',
+			modelId: 'test-model-id',
+		})) {
+			// drain
+		}
 
-		// ToolLoopAgent は praiser/denier/main の順に3回呼ばれ、lastCall がメインエージェントを指す
-		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: Record<string, unknown>;
-		};
-		expect(ctorSettings?.tools).toHaveProperty('callPraiserAgent');
-		expect(ctorSettings?.tools).toHaveProperty('callDenierAgent');
-	});
-
-	// 正常系: gemini_default では denier サブエージェントの prepareCall に否定系の性格リテラルが含まれることを検証する
-	it('should include denier personality in prepareCall of denier sub-agent when agent kind is gemini_default', async () => {
-		setupMockAgent([]);
-
-		createIntegration({}, 'gemini_default');
-
-		// gemini_default では ToolLoopAgent が praiser/denier/main の順に3回作られる
-		// 末尾から2番目が denier サブエージェントのコンストラクタ引数
-		const allCalls = vi.mocked(ToolLoopAgent).mock.calls;
-		const denierCtorSettings = allCalls.at(-2)?.[0] as
-			| { prepareCall?: (options: Record<string, unknown>) => { instructions?: string } }
-			| undefined;
-		const prepared = denierCtorSettings?.prepareCall?.({});
-		expect(prepared?.instructions).toContain('否定');
-		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
-	});
-
-	// 正常系: casual エージェントではタメ口の性格リテラルが instructions に含まれることを検証する
-	it('should include casual personality in prepareCall when agent kind is casual', async () => {
-		setupMockAgent([]);
-
-		createIntegration({}, 'casual');
-
-		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as
-			| { prepareCall?: (options: Record<string, unknown>) => { instructions?: string } }
-			| undefined;
-		const prepared = ctorSettings?.prepareCall?.({});
-		expect(prepared?.instructions).toContain('タメ口');
-		expect(prepared?.instructions).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
+		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as { tools?: Record<string, unknown> } | undefined;
+		expect(ctorSettings?.tools).toHaveProperty('weather');
+		expect(ctorSettings?.tools).not.toHaveProperty('postalCodeLookup');
 	});
 
 	// 正常系: postalCodeLookup ツールの execute が住所を返す場合に文字列を返すことを検証する
@@ -370,7 +349,10 @@ describe('GeminiChatIntegration', () => {
 			town: '大手町',
 		});
 
-		createIntegration({ postalCode: mockPostalCode });
+		const integration = createIntegration({ postalCode: mockPostalCode });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { postalCodeLookup?: { execute: (input: { zipCode: string }) => Promise<string> } };
@@ -388,7 +370,10 @@ describe('GeminiChatIntegration', () => {
 		const mockPostalCode = createLocalMockPostalCodeIntegration();
 		vi.mocked(mockPostalCode.lookup).mockResolvedValue(null);
 
-		createIntegration({ postalCode: mockPostalCode });
+		const integration = createIntegration({ postalCode: mockPostalCode });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { postalCodeLookup?: { execute: (input: { zipCode: string }) => Promise<string> } };
@@ -410,7 +395,10 @@ describe('GeminiChatIntegration', () => {
 			temperatureCelsius: 15,
 		});
 
-		createIntegration({ weather: mockWeather });
+		const integration = createIntegration({ weather: mockWeather });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { weather?: { execute: (input: { address: string }) => Promise<string> } };
@@ -428,7 +416,10 @@ describe('GeminiChatIntegration', () => {
 		const mockWeather = createLocalMockWeatherIntegration();
 		vi.mocked(mockWeather.lookup).mockResolvedValue(null);
 
-		createIntegration({ weather: mockWeather });
+		const integration = createIntegration({ weather: mockWeather });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { weather?: { execute: (input: { address: string }) => Promise<string> } };
@@ -448,7 +439,10 @@ describe('GeminiChatIntegration', () => {
 			user: { id: 'user_new', email: 'new@example.com', createdAt: '', updatedAt: '' },
 		});
 
-		createIntegration({ registerUser: mockRegisterUser });
+		const integration = createIntegration({ registerUser: mockRegisterUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { createUser?: { execute: (input: { email: string }) => Promise<string> } };
@@ -471,7 +465,10 @@ describe('GeminiChatIntegration', () => {
 			],
 		});
 
-		createIntegration({ getUsers: mockGetUsers });
+		const integration = createIntegration({ getUsers: mockGetUsers });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { getUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
@@ -489,7 +486,10 @@ describe('GeminiChatIntegration', () => {
 		const mockGetUsers = createLocalMockGetUsersUseCase();
 		vi.mocked(mockGetUsers.execute).mockResolvedValue({ users: [] });
 
-		createIntegration({ getUsers: mockGetUsers });
+		const integration = createIntegration({ getUsers: mockGetUsers });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { getUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
@@ -509,7 +509,10 @@ describe('GeminiChatIntegration', () => {
 			user: { id: 'user_01', email: 'updated@example.com', createdAt: '', updatedAt: '' },
 		});
 
-		createIntegration({ updateUser: mockUpdateUser });
+		const integration = createIntegration({ updateUser: mockUpdateUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { updateUser?: { execute: (input: { id: string; email: string }) => Promise<string> } };
@@ -527,7 +530,10 @@ describe('GeminiChatIntegration', () => {
 		const mockUpdateUser = createLocalMockUpdateUserUseCase();
 		vi.mocked(mockUpdateUser.execute).mockRejectedValue(new UserNotFoundError('not found'));
 
-		createIntegration({ updateUser: mockUpdateUser });
+		const integration = createIntegration({ updateUser: mockUpdateUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { updateUser?: { execute: (input: { id: string; email: string }) => Promise<string> } };
@@ -545,7 +551,10 @@ describe('GeminiChatIntegration', () => {
 		const mockDeleteUser = createLocalMockDeleteUserUseCase();
 		vi.mocked(mockDeleteUser.execute).mockResolvedValue({});
 
-		createIntegration({ deleteUser: mockDeleteUser });
+		const integration = createIntegration({ deleteUser: mockDeleteUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { deleteUser?: { execute: (input: { id: string }) => Promise<string> } };
@@ -563,7 +572,10 @@ describe('GeminiChatIntegration', () => {
 		const mockDeleteUser = createLocalMockDeleteUserUseCase();
 		vi.mocked(mockDeleteUser.execute).mockRejectedValue(new UserNotFoundError('not found'));
 
-		createIntegration({ deleteUser: mockDeleteUser });
+		const integration = createIntegration({ deleteUser: mockDeleteUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { deleteUser?: { execute: (input: { id: string }) => Promise<string> } };
@@ -581,7 +593,10 @@ describe('GeminiChatIntegration', () => {
 		const mockUpdateUser = createLocalMockUpdateUserUseCase();
 		vi.mocked(mockUpdateUser.execute).mockRejectedValue(new Error('unexpected error'));
 
-		createIntegration({ updateUser: mockUpdateUser });
+		const integration = createIntegration({ updateUser: mockUpdateUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { updateUser?: { execute: (input: { id: string; email: string }) => Promise<string> } };
@@ -598,7 +613,10 @@ describe('GeminiChatIntegration', () => {
 		const mockDeleteUser = createLocalMockDeleteUserUseCase();
 		vi.mocked(mockDeleteUser.execute).mockRejectedValue(new Error('unexpected error'));
 
-		createIntegration({ deleteUser: mockDeleteUser });
+		const integration = createIntegration({ deleteUser: mockDeleteUser });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { deleteUser?: { execute: (input: { id: string }) => Promise<string> } };
@@ -627,7 +645,10 @@ describe('GeminiChatIntegration', () => {
 			},
 		]);
 
-		createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
+		const integration = createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { searchSimilarMessages?: { execute: (input: { query: string; limit: number }) => Promise<string> } };
@@ -650,7 +671,10 @@ describe('GeminiChatIntegration', () => {
 		vi.mocked(mockEmbedding.embed).mockResolvedValue(new Array(3072).fill(0));
 		vi.mocked(mockMessageRepo.searchSimilar).mockResolvedValue([]);
 
-		createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
+		const integration = createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_TEST_AGENT_CONFIG)) {
+			// ToolLoopAgent を構築するためストリームを消化する
+		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
 			tools?: { searchSimilarMessages?: { execute: (input: { query: string; limit: number }) => Promise<string> } };

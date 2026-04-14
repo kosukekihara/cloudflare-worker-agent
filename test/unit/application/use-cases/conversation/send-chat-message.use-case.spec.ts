@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
+import type { ChatAgentConfig, ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
 import type { ConversationRecord } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRecord } from '~/application/ports/repositories/message/message.repository';
 import { SendChatMessageUseCase } from '~/application/use-cases/conversation/send-chat-message.use-case';
@@ -11,6 +11,13 @@ import { createMockMessageRepository } from '~mock/application/repositories/mess
 
 describe('SendChatMessageUseCase', () => {
 	const now = new Date('2026-01-01T00:00:00Z');
+
+	/** テスト用のデフォルト agentConfig */
+	const defaultAgentConfig: ChatAgentConfig = {
+		modelId: 'gemini-3.1-flash-lite-preview',
+		instruction: 'You are a helpful assistant.',
+		enabledTools: [],
+	};
 
 	function createConversationRecord(overrides?: Partial<ConversationRecord>): ConversationRecord {
 		return {
@@ -67,7 +74,11 @@ describe('SendChatMessageUseCase', () => {
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
 		const events: ChatStreamEvent[] = [];
-		for await (const event of useCase.execute({ conversationId: 'conv_01', content: 'こんにちは' })) {
+		for await (const event of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'こんにちは',
+			agentConfig: defaultAgentConfig,
+		})) {
 			events.push(event);
 		}
 
@@ -100,7 +111,11 @@ describe('SendChatMessageUseCase', () => {
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
 		const events: ChatStreamEvent[] = [];
-		for await (const event of useCase.execute({ conversationId: 'conv_01', content: 'テスト' })) {
+		for await (const event of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: defaultAgentConfig,
+		})) {
 			events.push(event);
 		}
 
@@ -130,7 +145,11 @@ describe('SendChatMessageUseCase', () => {
 		mockChat.streamReply = () => mockStream([{ type: 'text', text: '応答' }]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'テスト' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -169,7 +188,11 @@ describe('SendChatMessageUseCase', () => {
 			]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'Hi' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'Hi',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -204,7 +227,11 @@ describe('SendChatMessageUseCase', () => {
 		};
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: '新しい質問' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: '新しい質問',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -216,6 +243,42 @@ describe('SendChatMessageUseCase', () => {
 		]);
 	});
 
+	// 正常系: agentConfig が chatIntegration.streamReply に渡されることを検証する
+	it('should pass agentConfig to chatIntegration.streamReply', async () => {
+		const mockConvRepo = createMockConversationRepository();
+		const mockMsgRepo = createMockMessageRepository();
+		const mockChat = createMockChatIntegration();
+		const mockEmbedding = createMockEmbeddingIntegration();
+		const convRecord = createConversationRecord();
+		const savedMsg = createMessageRecord();
+
+		mockConvRepo.findById = async () => convRecord;
+		mockMsgRepo.findByConversationId = async () => [];
+		mockMsgRepo.save = async () => savedMsg;
+		let capturedAgentConfig: unknown;
+		mockChat.streamReply = (_messages, agentConfig) => {
+			capturedAgentConfig = agentConfig;
+			return mockStream([{ type: 'text', text: '応答' }]);
+		};
+
+		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
+		const customConfig: ChatAgentConfig = {
+			modelId: 'custom-model',
+			instruction: 'Custom instruction',
+			enabledTools: ['weather', 'postalCodeLookup'],
+		};
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: customConfig,
+		})) {
+			// drain
+		}
+
+		// agentConfig が streamReply に正しく渡されることを検証する
+		expect(capturedAgentConfig).toEqual(customConfig);
+	});
+
 	// 異常系: 指定 ID の会話が存在しない場合に ConversationNotFoundError がスローされることを検証する
 	it('should throw ConversationNotFoundError when conversation is not found', async () => {
 		const mockConvRepo = createMockConversationRepository();
@@ -225,7 +288,7 @@ describe('SendChatMessageUseCase', () => {
 		mockConvRepo.findById = async () => null;
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		const gen = useCase.execute({ conversationId: 'nonexistent', content: 'Hi' });
+		const gen = useCase.execute({ conversationId: 'nonexistent', content: 'Hi', agentConfig: defaultAgentConfig });
 
 		await expect(gen.next()).rejects.toThrow(ConversationNotFoundError);
 	});
@@ -245,7 +308,11 @@ describe('SendChatMessageUseCase', () => {
 		mockChat.streamReply = () => mockStream([{ type: 'text', text: '返答' }]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'テスト内容' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト内容',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -276,7 +343,11 @@ describe('SendChatMessageUseCase', () => {
 		mockChat.streamReply = () => mockStream([{ type: 'text', text: '返答' }]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'テスト' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -303,7 +374,11 @@ describe('SendChatMessageUseCase', () => {
 			]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'テスト' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 
@@ -334,7 +409,11 @@ describe('SendChatMessageUseCase', () => {
 		mockChat.streamReply = () => mockStream([{ type: 'text', text: '返答' }]);
 
 		const useCase = new SendChatMessageUseCase(mockConvRepo, mockMsgRepo, mockChat, mockEmbedding);
-		for await (const _ of useCase.execute({ conversationId: 'conv_01', content: 'テスト' })) {
+		for await (const _ of useCase.execute({
+			conversationId: 'conv_01',
+			content: 'テスト',
+			agentConfig: defaultAgentConfig,
+		})) {
 			// drain
 		}
 

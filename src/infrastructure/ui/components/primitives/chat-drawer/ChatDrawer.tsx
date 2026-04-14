@@ -1,5 +1,6 @@
 import { $, component$, useSignal, useVisibleTask$ } from '@builder.io/qwik';
 import { useNavigate } from '@builder.io/qwik-city';
+import type { IAgentSerializedEntity } from '~/domain/entities/agent.entity';
 import { MarkdownItIntegration } from '~/infrastructure/integrations/markdown/markdown-it.integration';
 import styles from './ChatDrawer.module.css';
 
@@ -11,6 +12,10 @@ interface Message {
 	toolIndicator?: string;
 }
 
+interface ChatDrawerProps {
+	agents: IAgentSerializedEntity[];
+}
+
 const markdownIntegration = new MarkdownItIntegration();
 
 const DEFAULT_DRAWER_WIDTH = 360;
@@ -18,11 +23,12 @@ const MIN_DRAWER_WIDTH = 280;
 const DRAWER_WIDTH_STORAGE_KEY = 'chat-drawer-width';
 
 /** 画面右に固定されるAIチャットドロワー */
-export const ChatDrawer = component$(() => {
+export const ChatDrawer = component$<ChatDrawerProps>(({ agents }) => {
 	const nav = useNavigate();
 	const isOpen = useSignal(false);
 	const drawerWidth = useSignal(DEFAULT_DRAWER_WIDTH);
 	const isResizing = useSignal(false);
+	const selectedAgentId = useSignal(agents[0]?.id ?? '');
 	const messages = useSignal<Message[]>([
 		{
 			id: '1',
@@ -34,6 +40,8 @@ export const ChatDrawer = component$(() => {
 	const inputValue = useSignal('');
 	const conversationId = useSignal<string | null>(null);
 	const isStreaming = useSignal(false);
+
+	const hasAgents = agents.length > 0;
 
 	// mermaid ブロックを含むメッセージが追加されたとき、クライアント側で mermaid.run() を実行する
 	useVisibleTask$(({ track }) => {
@@ -96,7 +104,7 @@ export const ChatDrawer = component$(() => {
 
 	const sendMessage$ = $(async () => {
 		const content = inputValue.value.trim();
-		if (!content || isStreaming.value) {
+		if (!content || isStreaming.value || !selectedAgentId.value) {
 			return;
 		}
 
@@ -119,7 +127,11 @@ export const ChatDrawer = component$(() => {
 
 		try {
 			const response = await fetch('/api/chat', {
-				body: JSON.stringify({ content, conversationId: conversationId.value }),
+				body: JSON.stringify({
+					agentId: selectedAgentId.value,
+					content,
+					conversationId: conversationId.value,
+				}),
 				headers: { 'Content-Type': 'application/json' },
 				method: 'POST',
 			});
@@ -321,6 +333,39 @@ export const ChatDrawer = component$(() => {
 					</button>
 				</div>
 
+				{/* エージェントセレクター */}
+				{(() => {
+					if (hasAgents) {
+						return (
+							<div class={styles.drawerAgentSelectArea}>
+								<select
+									class={styles.drawerAgentSelect}
+									onChange$={(_, el) => {
+										selectedAgentId.value = el.value;
+										conversationId.value = null;
+									}}
+									value={selectedAgentId.value}
+								>
+									{agents.map(agent => (
+										<option key={agent.id} value={agent.id}>
+											{agent.name}
+										</option>
+									))}
+								</select>
+							</div>
+						);
+					}
+
+					return (
+						<div class={styles.drawerNoAgents}>
+							エージェントがありません。
+							<a class={styles.drawerNoAgentsLink} href="/agents">
+								作成する
+							</a>
+						</div>
+					);
+				})()}
+
 				{/* メッセージエリア (column-reverse で自動スクロール) */}
 				<div class={styles.drawerMessages}>
 					{[...messages.value].reverse().map(message => {
@@ -354,19 +399,24 @@ export const ChatDrawer = component$(() => {
 				<div class={styles.drawerInputArea}>
 					<textarea
 						class={styles.drawerTextarea}
-						disabled={isStreaming.value}
+						disabled={isStreaming.value || !hasAgents}
 						onInput$={(_, el) => {
 							inputValue.value = el.value;
 						}}
 						onKeyDown$={handleKeyDown$}
-						placeholder="メッセージを入力..."
+						placeholder={(() => {
+							if (hasAgents) {
+								return 'メッセージを入力...';
+							}
+							return 'エージェントを作成してください';
+						})()}
 						rows={1}
 						value={inputValue.value}
 					/>
 					<button
 						aria-label="送信"
 						class={styles.drawerSend}
-						disabled={!inputValue.value.trim() || isStreaming.value}
+						disabled={!inputValue.value.trim() || isStreaming.value || !hasAgents}
 						onClick$={sendMessage$}
 						type="button"
 					>

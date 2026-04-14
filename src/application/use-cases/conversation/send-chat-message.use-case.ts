@@ -1,4 +1,5 @@
 import type {
+	ChatAgentConfig,
 	ChatIntegration,
 	ChatIntegrationMessage,
 	ChatStreamEvent,
@@ -11,6 +12,7 @@ import { ConversationNotFoundError } from '~/domain/errors/conversation-not-foun
 export interface SendChatMessageInput {
 	readonly conversationId: string;
 	readonly content: string;
+	readonly agentConfig: ChatAgentConfig;
 }
 
 /**
@@ -68,7 +70,7 @@ export class SendChatMessageUseCase {
 
 		const chunks: string[] = [];
 
-		for await (const event of this.chatIntegration.streamReply(messages)) {
+		for await (const event of this.chatIntegration.streamReply(messages, input.agentConfig)) {
 			yield event;
 			if (event.type === 'text') {
 				chunks.push(event.text);

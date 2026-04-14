@@ -1,5 +1,10 @@
 import { createContainer } from 'katagami';
 import type { ChatIntegration } from '~/application/ports/integrations/chat/chat.integration';
+import { CreateAgentUseCase } from '~/application/use-cases/agent/create-agent.use-case';
+import { DeleteAgentUseCase } from '~/application/use-cases/agent/delete-agent.use-case';
+import { GetAgentUseCase } from '~/application/use-cases/agent/get-agent.use-case';
+import { GetAgentsUseCase } from '~/application/use-cases/agent/get-agents.use-case';
+import { UpdateAgentUseCase } from '~/application/use-cases/agent/update-agent.use-case';
 import { SendChatMessageUseCase } from '~/application/use-cases/conversation/send-chat-message.use-case';
 import { StartConversationUseCase } from '~/application/use-cases/conversation/start-conversation.use-case';
 import { DeleteUserUseCase } from '~/application/use-cases/user/delete-user.use-case';
@@ -13,17 +18,27 @@ import { GeminiChatIntegration } from '~/infrastructure/integrations/ai/ai-chat.
 /** Application 層のトークン型マップ */
 export interface ApplicationService {
 	ChatIntegration: ChatIntegration;
+	CreateAgentUseCase: CreateAgentUseCase;
+	DeleteAgentUseCase: DeleteAgentUseCase;
 	DeleteUserUseCase: DeleteUserUseCase;
+	GetAgentUseCase: GetAgentUseCase;
+	GetAgentsUseCase: GetAgentsUseCase;
 	GetUsersUseCase: GetUsersUseCase;
 	RegisterUserUseCase: RegisterUserUseCase;
 	SendChatMessageUseCase: SendChatMessageUseCase;
 	StartConversationUseCase: StartConversationUseCase;
+	UpdateAgentUseCase: UpdateAgentUseCase;
 	UpdateUserUseCase: UpdateUserUseCase;
 }
 
 /** Application 層のサービスを登録したコンテナを構築する */
 export function buildApplicationContainer(env: Env) {
 	return createContainer<InfrastructureService & ApplicationService>()
+		.registerTransient('CreateAgentUseCase', r => new CreateAgentUseCase(r.resolve('AgentRepository')))
+		.registerTransient('GetAgentsUseCase', r => new GetAgentsUseCase(r.resolve('AgentRepository')))
+		.registerTransient('GetAgentUseCase', r => new GetAgentUseCase(r.resolve('AgentRepository')))
+		.registerTransient('UpdateAgentUseCase', r => new UpdateAgentUseCase(r.resolve('AgentRepository')))
+		.registerTransient('DeleteAgentUseCase', r => new DeleteAgentUseCase(r.resolve('AgentRepository')))
 		.registerTransient('RegisterUserUseCase', r => new RegisterUserUseCase(r.resolve('UserRepository')))
 		.registerTransient('GetUsersUseCase', r => new GetUsersUseCase(r.resolve('UserRepository')))
 		.registerTransient('UpdateUserUseCase', r => new UpdateUserUseCase(r.resolve('UserRepository')))

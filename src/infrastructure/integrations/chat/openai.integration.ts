@@ -3,6 +3,7 @@ import { stepCountIs, streamText, tool, zodSchema } from 'ai';
 import { z } from 'zod';
 import { InfrastructureError } from '~/app-kernel/errors/infrastructure.error';
 import type {
+	ChatAgentConfig,
 	ChatIntegration,
 	ChatIntegrationMessage,
 	ChatStreamEvent,
@@ -16,25 +17,13 @@ import type { GetUsersUseCase } from '~/application/use-cases/user/get-users.use
 import type { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import type { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
 import { UserNotFoundError } from '~/domain/errors/user-not-found.error';
-
-/** 現在時刻を JST の日時文字列 (YYYY年MM月DD日 HH:MM) に変換する */
-function buildJstDateTimeString(): string {
-	const now = new Date();
-	const jstOffsetMs = 9 * 60 * 60 * 1000;
-	const jst = new Date(now.getTime() + jstOffsetMs);
-	const year = jst.getUTCFullYear();
-	const month = String(jst.getUTCMonth() + 1).padStart(2, '0');
-	const day = String(jst.getUTCDate()).padStart(2, '0');
-	const hours = String(jst.getUTCHours()).padStart(2, '0');
-	const minutes = String(jst.getUTCMinutes()).padStart(2, '0');
-	return `${year}年${month}月${day}日 ${hours}:${minutes}`;
-}
+import { buildJstDateTimeString } from '~/infrastructure/integrations/ai/jst-datetime';
 
 /**
  * OpenAI を使った ChatIntegration の具象実装
  *
  * ai-sdk の streamText を使用してテキストおよびツールイベントをストリーミング生成する。
- * システムプロンプトに現在の JST 時刻を埋め込み、各種ツールを提供する。
+ * モデル・システムプロンプト・有効ツールは agentConfig で決定する (JST 時刻をシステム文に付与する)。
  */
 export class OpenAIChatIntegration implements ChatIntegration {
 	private readonly apiKey: string;
@@ -69,7 +58,10 @@ export class OpenAIChatIntegration implements ChatIntegration {
 		this.messageRepository = messageRepository;
 	}
 
-	public async *streamReply(messages: ChatIntegrationMessage[]): AsyncGenerator<ChatStreamEvent, void, unknown> {
+	public async *streamReply(
+		messages: ChatIntegrationMessage[],
+		agentConfig: ChatAgentConfig,
+	): AsyncGenerator<ChatStreamEvent, void, unknown> {
 		try {
 			const openai = createOpenAI({ apiKey: this.apiKey });
 
@@ -192,28 +184,44 @@ export class OpenAIChatIntegration implements ChatIntegration {
 				},
 			});
 
+			const allTools = {
+				createUser: createUserTool,
+				deleteUser: deleteUserTool,
+				getUsers: getUsersTool,
+				postalCodeLookup: postalCodeTool,
+				searchSimilarMessages: searchSimilarMessagesTool,
+				updateUser: updateUserTool,
+				weather: weatherTool,
+			};
+
+			const enabledSet = new Set(agentConfig.enabledTools);
+			const filteredTools = Object.fromEntries(Object.entries(allTools).filter(([key]) => enabledSet.has(key)));
+
+			const systemPrompt = `${agentConfig.instruction}\n\n現在の日本時間は ${buildJstDateTimeString()} (JST) です。`;
+
 			const result = streamText({
 				messages: messages.map(m => ({ content: m.content, role: m.role })),
-				model: openai('gpt-4o-mini'),
+				model: openai(agentConfig.modelId),
 				stopWhen: stepCountIs(5),
-				system: `あなたは親切な AI アシスタントです。現在の日本時間は ${buildJstDateTimeString()} (JST) です。`,
-				tools: {
-					createUser: createUserTool,
-					deleteUser: deleteUserTool,
-					getUsers: getUsersTool,
-					postalCodeLookup: postalCodeTool,
-					searchSimilarMessages: searchSimilarMessagesTool,
-					updateUser: updateUserTool,
-					weather: weatherTool,
-				},
+				system: systemPrompt,
+				tools: filteredTools,
 			});
 
 			for await (const part of result.fullStream) {
 				if (part.type === 'text-delta') {
+					if (part.text === undefined) {
+						continue;
+					}
 					yield { type: 'text', text: part.text };
 				} else if (part.type === 'tool-call') {
+					if (part.toolName === undefined) {
+						continue;
+					}
 					yield { type: 'tool_call', toolName: part.toolName };
 				} else if (part.type === 'tool-result') {
+					if (part.toolName === undefined) {
+						continue;
+					}
 					yield { type: 'tool_result', toolName: part.toolName, result: String(part.output) };
 				}
 			}

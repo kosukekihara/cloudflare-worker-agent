@@ -5,6 +5,7 @@ import type { EmbeddingIntegration } from '~/application/ports/integrations/embe
 import type { MarkdownIntegration } from '~/application/ports/integrations/markdown/markdown.integration';
 import type { PostalCodeIntegration } from '~/application/ports/integrations/postal-code/postal-code.integration';
 import type { WeatherIntegration } from '~/application/ports/integrations/weather/weather.integration';
+import type { AgentRepository } from '~/application/ports/repositories/agent/agent.repository';
 import type { ConversationRepository } from '~/application/ports/repositories/conversation/conversation.repository';
 import type { MessageRepository } from '~/application/ports/repositories/message/message.repository';
 import type { UserRepository } from '~/application/ports/repositories/user/user.repository';
@@ -12,12 +13,14 @@ import { GeminiEmbeddingIntegration } from '~/infrastructure/integrations/embedd
 import { MarkdownItIntegration } from '~/infrastructure/integrations/markdown/markdown-it.integration';
 import { ZipCloudPostalCodeIntegration } from '~/infrastructure/integrations/postal-code/zipcloud.integration';
 import { WttrInWeatherIntegration } from '~/infrastructure/integrations/weather/wttrin.integration';
+import { PrismaAgentRepository } from '~/infrastructure/repositories/agent/agent.repository';
 import { PrismaConversationRepository } from '~/infrastructure/repositories/conversation/conversation.repository';
 import { PrismaMessageRepository } from '~/infrastructure/repositories/message/message.repository';
 import { PrismaUserRepository } from '~/infrastructure/repositories/user/user.repository';
 
 /** Infrastructure 層のトークン型マップ */
 export interface InfrastructureService {
+	AgentRepository: AgentRepository;
 	ConversationRepository: ConversationRepository;
 	EmbeddingIntegration: EmbeddingIntegration;
 	MarkdownIntegration: MarkdownIntegration;
@@ -56,6 +59,7 @@ export function buildInfrastructureContainer(env: Env) {
 	const prismaClient = createPrismaClient(env.DATABASE_URL);
 
 	return createContainer<InfrastructureService>()
+		.registerSingleton('AgentRepository', () => new PrismaAgentRepository(prismaClient))
 		.registerSingleton('UserRepository', () => new PrismaUserRepository(prismaClient))
 		.registerSingleton('ConversationRepository', () => new PrismaConversationRepository(prismaClient))
 		.registerSingleton('MessageRepository', () => new PrismaMessageRepository(prismaClient))

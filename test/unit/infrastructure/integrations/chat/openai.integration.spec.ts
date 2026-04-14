@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { InfrastructureError } from '~/app-kernel/errors/infrastructure.error';
-import type { ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
+import type { ChatAgentConfig, ChatStreamEvent } from '~/application/ports/integrations/chat/chat.integration';
 import type { PostalCodeIntegration } from '~/application/ports/integrations/postal-code/postal-code.integration';
 import type { WeatherIntegration } from '~/application/ports/integrations/weather/weather.integration';
 import type { DeleteUserUseCase } from '~/application/use-cases/user/delete-user.use-case';
@@ -23,6 +23,20 @@ vi.mock('ai', () => ({
 	tool: vi.fn((config: unknown) => config),
 	zodSchema: vi.fn((schema: unknown) => schema),
 }));
+
+const DEFAULT_OPENAI_AGENT_CONFIG: ChatAgentConfig = {
+	enabledTools: [
+		'postalCodeLookup',
+		'weather',
+		'createUser',
+		'getUsers',
+		'updateUser',
+		'deleteUser',
+		'searchSimilarMessages',
+	],
+	instruction: 'テスト用アシスタントです。',
+	modelId: 'gpt-4o-mini',
+};
 
 /** fullStream 用のストリームパートを生成するヘルパー */
 async function* makeFullStream(parts: Array<Record<string, unknown>>) {
@@ -117,7 +131,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -139,7 +153,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -157,7 +171,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
@@ -177,11 +191,65 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
-		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			events.push(event);
 		}
 
 		expect(events).toEqual([{ type: 'text', text: 'OK' }]);
+	});
+
+	// 正常系: text-delta で text が無いパートはスキップし、後続の有効な delta のみ yield する
+	it('should skip text-delta parts when text is undefined', async () => {
+		const { streamText } = await import('ai');
+		vi.mocked(streamText).mockReturnValue({
+			fullStream: makeFullStream([{ type: 'text-delta' }, { type: 'text-delta', text: 'only' }]),
+		} as never);
+
+		const integration = createIntegration();
+		const events: ChatStreamEvent[] = [];
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([{ type: 'text', text: 'only' }]);
+	});
+
+	// 正常系: tool-call で toolName が無いパートはスキップする
+	it('should skip tool-call parts when toolName is undefined', async () => {
+		const { streamText } = await import('ai');
+		vi.mocked(streamText).mockReturnValue({
+			fullStream: makeFullStream([
+				{ type: 'tool-call', toolCallId: 'id0' },
+				{ type: 'tool-call', toolCallId: 'id1', toolName: 'weather' },
+			]),
+		} as never);
+
+		const integration = createIntegration();
+		const events: ChatStreamEvent[] = [];
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([{ type: 'tool_call', toolName: 'weather' }]);
+	});
+
+	// 正常系: tool-result で toolName が無いパートはスキップする
+	it('should skip tool-result parts when toolName is undefined', async () => {
+		const { streamText } = await import('ai');
+		vi.mocked(streamText).mockReturnValue({
+			fullStream: makeFullStream([
+				{ type: 'tool-result', toolCallId: 'id0', output: 'ignored' },
+				{ type: 'tool-result', toolCallId: 'id1', toolName: 'weather', output: '晴れ' },
+			]),
+		} as never);
+
+		const integration = createIntegration();
+		const events: ChatStreamEvent[] = [];
+		for await (const event of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([{ type: 'tool_result', toolName: 'weather', result: '晴れ' }]);
 	});
 
 	// 正常系: streamText にメッセージ履歴が正しく渡されることを検証する
@@ -196,7 +264,7 @@ describe('OpenAIChatIntegration', () => {
 			{ role: 'user' as const, content: '質問' },
 			{ role: 'assistant' as const, content: '回答' },
 		];
-		for await (const _ of integration.streamReply(messages)) {
+		for await (const _ of integration.streamReply(messages, DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -218,7 +286,7 @@ describe('OpenAIChatIntegration', () => {
 		});
 
 		const integration = createIntegration();
-		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }]);
+		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG);
 
 		await expect(gen.next()).rejects.toThrow(InfrastructureError);
 	});
@@ -231,7 +299,7 @@ describe('OpenAIChatIntegration', () => {
 		});
 
 		const integration = createIntegration();
-		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }]);
+		const gen = integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG);
 
 		await expect(gen.next()).rejects.toThrow(InfrastructureError);
 	});
@@ -244,13 +312,53 @@ describe('OpenAIChatIntegration', () => {
 		} as never);
 
 		const integration = createIntegration();
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
 		const callArg = vi.mocked(streamText).mock.lastCall?.[0] as { system?: string } | undefined;
-		// JST 形式の日時文字列 (YYYY年MM月DD日 HH:MM) がシステムプロンプトに含まれることを検証する
+		expect(callArg?.system).toContain(DEFAULT_OPENAI_AGENT_CONFIG.instruction);
 		expect(callArg?.system).toMatch(/\d{4}年\d{2}月\d{2}日 \d{2}:\d{2} \(JST\)/);
+	});
+
+	// 正常系: streamText に agentConfig.modelId が渡ることを検証する
+	it('should pass agentConfig modelId to streamText', async () => {
+		const { streamText } = await import('ai');
+		vi.mocked(streamText).mockReturnValue({
+			fullStream: makeFullStream([]),
+		} as never);
+
+		const integration = createIntegration();
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
+			...DEFAULT_OPENAI_AGENT_CONFIG,
+			modelId: 'gpt-4o',
+		})) {
+			// drain
+		}
+
+		const callArg = vi.mocked(streamText).mock.lastCall?.[0] as { model?: { id: string } } | undefined;
+		expect(callArg?.model).toEqual({ id: 'gpt-4o' });
+	});
+
+	// 正常系: enabledTools に含まれるツールだけが streamText に渡ることを検証する
+	it('should pass only enabled tools to streamText', async () => {
+		const { streamText } = await import('ai');
+		vi.mocked(streamText).mockReturnValue({
+			fullStream: makeFullStream([]),
+		} as never);
+
+		const integration = createIntegration();
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
+			enabledTools: ['weather'],
+			instruction: 'x',
+			modelId: 'gpt-4o-mini',
+		})) {
+			// drain
+		}
+
+		const callArg = vi.mocked(streamText).mock.lastCall?.[0] as { tools?: Record<string, unknown> } | undefined;
+		expect(callArg?.tools).toHaveProperty('weather');
+		expect(callArg?.tools).not.toHaveProperty('postalCodeLookup');
 	});
 
 	// 正常系: postalCodeLookup ツールの execute が住所を返す場合に文字列を返すことを検証する
@@ -270,7 +378,7 @@ describe('OpenAIChatIntegration', () => {
 		const integration = createIntegration({ postalCode: mockPostalCode });
 		// 呼び出し前の tool() コール数を記録してテスト固有の相対インデックスを得る
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -295,7 +403,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ postalCode: mockPostalCode });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -324,7 +432,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ weather: mockWeather });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -349,7 +457,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ weather: mockWeather });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -376,7 +484,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ registerUser: mockRegisterUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -406,7 +514,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ getUsers: mockGetUsers });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -431,7 +539,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ getUsers: mockGetUsers });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -458,7 +566,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ updateUser: mockUpdateUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -483,7 +591,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ updateUser: mockUpdateUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -508,7 +616,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ deleteUser: mockDeleteUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -533,7 +641,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ deleteUser: mockDeleteUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 
@@ -558,7 +666,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ updateUser: mockUpdateUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -582,7 +690,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ deleteUser: mockDeleteUser });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -618,7 +726,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain して tool を登録させる
 		}
 
@@ -648,7 +756,7 @@ describe('OpenAIChatIntegration', () => {
 
 		const integration = createIntegration({ embedding: mockEmbedding, messageRepo: mockMessageRepo });
 		const startIndex = vi.mocked(toolFn).mock.calls.length;
-		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }])) {
+		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], DEFAULT_OPENAI_AGENT_CONFIG)) {
 			// drain
 		}
 

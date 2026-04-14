@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { InfrastructureError } from '~/app-kernel/errors/infrastructure.error';
 import type {
+	ChatAgentConfig,
 	ChatIntegration,
 	ChatIntegrationMessage,
 	ChatStreamEvent,
@@ -13,26 +14,14 @@ import type { DeleteUserUseCase } from '~/application/use-cases/user/delete-user
 import type { GetUsersUseCase } from '~/application/use-cases/user/get-users.use-case';
 import type { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import type { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
-import { buildCasualChatAgent } from '~/infrastructure/integrations/ai/agents/casual-chat.agent';
-import { buildDenierChatAgent } from '~/infrastructure/integrations/ai/agents/denier-chat.agent';
-import { buildGeminiChatAgent } from '~/infrastructure/integrations/ai/agents/gemini-chat.agent';
-import { buildPraiserChatAgent } from '~/infrastructure/integrations/ai/agents/praiser-chat.agent';
-import { ACTIVE_AI_CHAT_AGENT, type AiChatAgentKind } from '~/infrastructure/integrations/ai/ai-chat-agent-kind';
-import { buildSubAgentTool } from '~/infrastructure/integrations/ai/build-sub-agent-tool';
+import { buildDynamicChatAgent } from '~/infrastructure/integrations/ai/agents/dynamic-chat.agent';
 import { buildGeminiChatToolSet } from '~/infrastructure/integrations/ai/gemini-chat-tool-set';
-import type { ToolLoopStreamAdapter } from '~/infrastructure/integrations/ai/tool-loop-stream.types';
-
-/**
- * チャット生成で用いる Gemini モデル ID
- * モデルだけ差し替える場合はここを変更する
- */
-export const GEMINI_CHAT_MODEL_ID = 'gemini-3.1-flash-lite-preview' as const;
 
 /**
  * Google Gemini + ToolLoopAgent による ChatIntegration
  *
- * 性格・システムインストラクションは `agents/*.agent.ts` のビルダーに委譲する。
- * 利用するビルダーは ACTIVE_AI_CHAT_AGENT またはコンストラクタ末尾の agentKindOverride で選ぶ。
+ * streamReply 呼び出しのたびに agentConfig に従ってエージェントをビルドする。
+ * モデル・インストラクション・有効ツールはすべて agentConfig で動的に決定される。
  */
 export class GeminiChatIntegration implements ChatIntegration {
 	private readonly apiKey: string;
@@ -44,8 +33,6 @@ export class GeminiChatIntegration implements ChatIntegration {
 	private readonly deleteUserUseCase: DeleteUserUseCase;
 	private readonly embeddingIntegration: EmbeddingIntegration;
 	private readonly messageRepository: MessageRepository;
-	private readonly agentKind: AiChatAgentKind;
-	private readonly agent: ToolLoopStreamAdapter;
 
 	public constructor(
 		apiKey: string,
@@ -57,7 +44,6 @@ export class GeminiChatIntegration implements ChatIntegration {
 		deleteUserUseCase: DeleteUserUseCase,
 		embeddingIntegration: EmbeddingIntegration,
 		messageRepository: MessageRepository,
-		agentKindOverride?: AiChatAgentKind,
 	) {
 		this.apiKey = apiKey;
 		this.postalCodeIntegration = postalCodeIntegration;
@@ -68,55 +54,33 @@ export class GeminiChatIntegration implements ChatIntegration {
 		this.deleteUserUseCase = deleteUserUseCase;
 		this.embeddingIntegration = embeddingIntegration;
 		this.messageRepository = messageRepository;
-		this.agentKind = agentKindOverride ?? ACTIVE_AI_CHAT_AGENT;
-		this.agent = this.buildAgent();
 	}
 
-	private buildAgent(): ToolLoopStreamAdapter {
-		const google = createGoogleGenerativeAI({ apiKey: this.apiKey });
-		const model = google(GEMINI_CHAT_MODEL_ID);
-		const tools = buildGeminiChatToolSet({
-			postalCodeIntegration: this.postalCodeIntegration,
-			weatherIntegration: this.weatherIntegration,
-			registerUserUseCase: this.registerUserUseCase,
-			getUsersUseCase: this.getUsersUseCase,
-			updateUserUseCase: this.updateUserUseCase,
-			deleteUserUseCase: this.deleteUserUseCase,
-			embeddingIntegration: this.embeddingIntegration,
-			messageRepository: this.messageRepository,
-		});
-
-		if (this.agentKind === 'praiser') {
-			return buildPraiserChatAgent(model, tools);
-		}
-		if (this.agentKind === 'casual') {
-			return buildCasualChatAgent(model, tools);
-		}
-
-		// gemini_default: サブエージェントツールを組み込んだメインエージェントを構築する
-		// サブエージェント自体は baseTools のみ持ち、無限再帰呼び出しを防ぐ
-		const praiserAgent = buildPraiserChatAgent(model, tools);
-		const denierAgent = buildDenierChatAgent(model, tools);
-		const mainTools = {
-			...tools,
-			callPraiserAgent: buildSubAgentTool({
-				name: 'callPraiserAgent',
-				description:
-					'ユーザーの気分が落ち込んでいる・元気がない・励ましや肯定が必要と判断したときに呼び出す全力肯定エージェント',
-				agent: praiserAgent,
-			}),
-			callDenierAgent: buildSubAgentTool({
-				name: 'callDenierAgent',
-				description: 'ユーザーが無礼・失礼・舐めた口をきいていると判断したときに呼び出す全力否定エージェント',
-				agent: denierAgent,
-			}),
-		};
-		return buildGeminiChatAgent(model, mainTools);
-	}
-
-	public async *streamReply(messages: ChatIntegrationMessage[]): AsyncGenerator<ChatStreamEvent, void, unknown> {
+	public async *streamReply(
+		messages: ChatIntegrationMessage[],
+		agentConfig: ChatAgentConfig,
+	): AsyncGenerator<ChatStreamEvent, void, unknown> {
 		try {
-			const result = await this.agent.stream({
+			const google = createGoogleGenerativeAI({ apiKey: this.apiKey });
+			const model = google(agentConfig.modelId);
+
+			const allTools = buildGeminiChatToolSet({
+				postalCodeIntegration: this.postalCodeIntegration,
+				weatherIntegration: this.weatherIntegration,
+				registerUserUseCase: this.registerUserUseCase,
+				getUsersUseCase: this.getUsersUseCase,
+				updateUserUseCase: this.updateUserUseCase,
+				deleteUserUseCase: this.deleteUserUseCase,
+				embeddingIntegration: this.embeddingIntegration,
+				messageRepository: this.messageRepository,
+			});
+
+			const enabledSet = new Set(agentConfig.enabledTools);
+			const filteredTools = Object.fromEntries(Object.entries(allTools).filter(([key]) => enabledSet.has(key)));
+
+			const agent = buildDynamicChatAgent(model, filteredTools, agentConfig.instruction);
+
+			const result = await agent.stream({
 				messages: messages.map(m => ({ content: m.content, role: m.role })),
 			});
 
