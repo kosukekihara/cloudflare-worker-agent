@@ -1,5 +1,6 @@
 import { component$, Slot } from '@builder.io/qwik';
 import { type RequestEventLoader, routeLoader$ } from '@builder.io/qwik-city';
+import { GlobalNav } from '../components/layout/global-nav/GlobalNav';
 import { ChatDrawer } from '../components/primitives/chat-drawer/ChatDrawer';
 import { getAgentsForLayoutHandler } from './layout.server';
 
@@ -16,11 +17,13 @@ export const useLayoutAgents = routeLoader$(loadLayoutAgents);
  */
 export default component$(() => {
 	const agentsLoader = useLayoutAgents();
+	const agents = agentsLoader.value.agents;
 
 	return (
 		<>
+			<GlobalNav agentCount={agents.length} />
 			<Slot />
-			<ChatDrawer agents={agentsLoader.value.agents} />
+			<ChatDrawer agents={agents} />
 		</>
 	);
 });

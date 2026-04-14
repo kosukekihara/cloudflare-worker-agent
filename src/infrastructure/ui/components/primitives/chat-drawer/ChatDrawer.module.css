@@ -155,6 +155,24 @@
 	}
 }
 
+.drawer__agent-links {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	padding-top: 6px;
+}
+
+.drawer__agent-link {
+	font-size: 11px;
+	color: #94a3b8;
+	text-decoration: none;
+	transition: color 0.15s ease;
+}
+
+.drawer__agent-link:hover {
+	color: #38bdf8;
+}
+
 .drawer__no-agents {
 	padding: 8px 16px;
 	font-size: 12px;

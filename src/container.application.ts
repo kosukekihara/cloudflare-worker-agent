@@ -73,6 +73,7 @@ export function buildApplicationContainer(env: Env) {
 				// ),
 				new GeminiChatIntegration(
 					env.GOOGLE_AI_STUDIO_API_KEY,
+					env.OPENAI_API_KEY,
 					r.resolve('PostalCodeIntegration'),
 					r.resolve('WeatherIntegration'),
 					r.resolve('RegisterUserUseCase'),

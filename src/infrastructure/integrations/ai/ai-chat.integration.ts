@@ -1,4 +1,5 @@
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenAI } from '@ai-sdk/openai';
 import { InfrastructureError } from '~/app-kernel/errors/infrastructure.error';
 import type {
 	ChatAgentConfig,
@@ -18,13 +19,18 @@ import { buildDynamicChatAgent } from '~/infrastructure/integrations/ai/agents/d
 import { buildGeminiChatToolSet } from '~/infrastructure/integrations/ai/gemini-chat-tool-set';
 
 /**
- * Google Gemini + ToolLoopAgent による ChatIntegration
+ * Google Gemini / OpenAI + ToolLoopAgent による ChatIntegration
  *
  * streamReply 呼び出しのたびに agentConfig に従ってエージェントをビルドする。
  * モデル・インストラクション・有効ツールはすべて agentConfig で動的に決定される。
+ *
+ * modelId のフォーマット:
+ * - `openai:<model>` → OpenAI プロバイダー (例: openai:gpt-5.4-mini)
+ * - `<model>` のみ → Google Gemini プロバイダー (例: gemini-3.1-flash-lite-preview)
  */
 export class GeminiChatIntegration implements ChatIntegration {
-	private readonly apiKey: string;
+	private readonly googleApiKey: string;
+	private readonly openaiApiKey: string;
 	private readonly postalCodeIntegration: PostalCodeIntegration;
 	private readonly weatherIntegration: WeatherIntegration;
 	private readonly registerUserUseCase: RegisterUserUseCase;
@@ -35,7 +41,8 @@ export class GeminiChatIntegration implements ChatIntegration {
 	private readonly messageRepository: MessageRepository;
 
 	public constructor(
-		apiKey: string,
+		googleApiKey: string,
+		openaiApiKey: string,
 		postalCodeIntegration: PostalCodeIntegration,
 		weatherIntegration: WeatherIntegration,
 		registerUserUseCase: RegisterUserUseCase,
@@ -45,7 +52,8 @@ export class GeminiChatIntegration implements ChatIntegration {
 		embeddingIntegration: EmbeddingIntegration,
 		messageRepository: MessageRepository,
 	) {
-		this.apiKey = apiKey;
+		this.googleApiKey = googleApiKey;
+		this.openaiApiKey = openaiApiKey;
 		this.postalCodeIntegration = postalCodeIntegration;
 		this.weatherIntegration = weatherIntegration;
 		this.registerUserUseCase = registerUserUseCase;
@@ -61,8 +69,22 @@ export class GeminiChatIntegration implements ChatIntegration {
 		agentConfig: ChatAgentConfig,
 	): AsyncGenerator<ChatStreamEvent, void, unknown> {
 		try {
-			const google = createGoogleGenerativeAI({ apiKey: this.apiKey });
-			const model = google(agentConfig.modelId);
+			let provider: string;
+			let modelName: string;
+			if (agentConfig.modelId.includes(':')) {
+				[provider, modelName] = agentConfig.modelId.split(':', 2) as [string, string];
+			} else {
+				provider = 'google';
+				modelName = agentConfig.modelId;
+			}
+
+			const model = (() => {
+				if (provider === 'openai') {
+					return createOpenAI({ apiKey: this.openaiApiKey })(modelName);
+				} else {
+					return createGoogleGenerativeAI({ apiKey: this.googleApiKey })(modelName);
+				}
+			})();
 
 			const allTools = buildGeminiChatToolSet({
 				postalCodeIntegration: this.postalCodeIntegration,

@@ -30,10 +30,11 @@ const DEFAULT_TEST_AGENT_CONFIG: ChatAgentConfig = {
 	modelId: 'test-model-id',
 	instruction: 'テスト用アシスタントです。',
 	enabledTools: [
-		'postalCodeLookup',
-		'weather',
+		'lookupAddress',
+		'getCurrentTime',
+		'getWeather',
+		'listUsers',
 		'createUser',
-		'getUsers',
 		'updateUser',
 		'deleteUser',
 		'searchSimilarMessages',
@@ -127,7 +128,8 @@ function createIntegration(
 	} = {},
 ): GeminiChatIntegration {
 	return new GeminiChatIntegration(
-		'test-api-key',
+		'test-google-api-key',
+		'test-openai-api-key',
 		overrides.postalCode ?? createLocalMockPostalCodeIntegration(),
 		overrides.weather ?? createLocalMockWeatherIntegration(),
 		overrides.registerUser ?? createLocalMockRegisterUserUseCase(),
@@ -163,9 +165,7 @@ describe('GeminiChatIntegration', () => {
 
 	// 正常系: tool-call パートが tool_call イベントとして yield されることを検証する
 	it('should yield tool_call event from tool-call part', async () => {
-		setupMockAgent([
-			{ type: 'tool-call', toolCallId: 'id1', toolName: 'postalCodeLookup', args: { zipCode: '1000001' } },
-		]);
+		setupMockAgent([{ type: 'tool-call', toolCallId: 'id1', toolName: 'lookupAddress', args: { zipCode: '1000001' } }]);
 
 		const integration = createIntegration();
 		const events: ChatStreamEvent[] = [];
@@ -173,13 +173,13 @@ describe('GeminiChatIntegration', () => {
 			events.push(event);
 		}
 
-		expect(events).toEqual([{ type: 'tool_call', toolName: 'postalCodeLookup' }]);
+		expect(events).toEqual([{ type: 'tool_call', toolName: 'lookupAddress' }]);
 	});
 
 	// 正常系: tool-result パートが tool_result イベントとして yield されることを検証する
 	it('should yield tool_result event from tool-result part', async () => {
 		setupMockAgent([
-			{ type: 'tool-result', toolCallId: 'id1', toolName: 'postalCodeLookup', output: '東京都千代田区大手町' },
+			{ type: 'tool-result', toolCallId: 'id1', toolName: 'lookupAddress', output: '東京都千代田区大手町' },
 		]);
 
 		const integration = createIntegration();
@@ -188,7 +188,7 @@ describe('GeminiChatIntegration', () => {
 			events.push(event);
 		}
 
-		expect(events).toEqual([{ type: 'tool_result', toolName: 'postalCodeLookup', result: '東京都千代田区大手町' }]);
+		expect(events).toEqual([{ type: 'tool_result', toolName: 'lookupAddress', result: '東京都千代田区大手町' }]);
 	});
 
 	// 正常系: finish 等の未知パートは無視されることを検証する
@@ -225,7 +225,7 @@ describe('GeminiChatIntegration', () => {
 	it('should skip tool-call parts when toolName is undefined', async () => {
 		setupMockAgent([
 			{ type: 'tool-call', toolCallId: 'id0' },
-			{ type: 'tool-call', toolCallId: 'id1', toolName: 'weather' },
+			{ type: 'tool-call', toolCallId: 'id1', toolName: 'getWeather' },
 		]);
 
 		const integration = createIntegration();
@@ -234,14 +234,14 @@ describe('GeminiChatIntegration', () => {
 			events.push(event);
 		}
 
-		expect(events).toEqual([{ type: 'tool_call', toolName: 'weather' }]);
+		expect(events).toEqual([{ type: 'tool_call', toolName: 'getWeather' }]);
 	});
 
 	// 正常系: tool-result で toolName が無いパートはスキップする
 	it('should skip tool-result parts when toolName is undefined', async () => {
 		setupMockAgent([
 			{ type: 'tool-result', toolCallId: 'id0', output: 'ignored' },
-			{ type: 'tool-result', toolCallId: 'id1', toolName: 'weather', output: '晴れ' },
+			{ type: 'tool-result', toolCallId: 'id1', toolName: 'getWeather', output: '晴れ' },
 		]);
 
 		const integration = createIntegration();
@@ -250,7 +250,7 @@ describe('GeminiChatIntegration', () => {
 			events.push(event);
 		}
 
-		expect(events).toEqual([{ type: 'tool_result', toolName: 'weather', result: '晴れ' }]);
+		expect(events).toEqual([{ type: 'tool_result', toolName: 'getWeather', result: '晴れ' }]);
 	});
 
 	// 正常系: agent.stream にメッセージ履歴が正しく渡されることを検証する
@@ -305,7 +305,7 @@ describe('GeminiChatIntegration', () => {
 		const customInstruction = 'カスタムのシステム指示文';
 		const integration = createIntegration();
 		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
-			enabledTools: ['postalCodeLookup'],
+			enabledTools: ['lookupAddress'],
 			instruction: customInstruction,
 			modelId: 'test-model-id',
 		})) {
@@ -326,7 +326,7 @@ describe('GeminiChatIntegration', () => {
 
 		const integration = createIntegration();
 		for await (const _ of integration.streamReply([{ role: 'user', content: 'Hi' }], {
-			enabledTools: ['weather'],
+			enabledTools: ['getWeather'],
 			instruction: 'x',
 			modelId: 'test-model-id',
 		})) {
@@ -334,12 +334,12 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as { tools?: Record<string, unknown> } | undefined;
-		expect(ctorSettings?.tools).toHaveProperty('weather');
-		expect(ctorSettings?.tools).not.toHaveProperty('postalCodeLookup');
+		expect(ctorSettings?.tools).toHaveProperty('getWeather');
+		expect(ctorSettings?.tools).not.toHaveProperty('lookupAddress');
 	});
 
-	// 正常系: postalCodeLookup ツールの execute が住所を返す場合に文字列を返すことを検証する
-	it('should return address string from postalCodeLookup tool execute when address is found', async () => {
+	// 正常系: lookupAddress ツールの execute が住所を返す場合に文字列を返すことを検証する
+	it('should return address string from lookupAddress tool execute when address is found', async () => {
 		setupMockAgent([]);
 
 		const mockPostalCode = createLocalMockPostalCodeIntegration();
@@ -355,16 +355,16 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { postalCodeLookup?: { execute: (input: { zipCode: string }) => Promise<string> } };
+			tools?: { lookupAddress?: { execute: (input: { zipCode: string }) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.postalCodeLookup;
+		const toolConfig = ctorSettings?.tools?.lookupAddress;
 		const result = await toolConfig?.execute({ zipCode: '1000001' });
 
 		expect(result).toBe('東京都千代田区大手町');
 	});
 
-	// 正常系: postalCodeLookup ツールの execute が住所が見つからない場合に案内文字列を返すことを検証する
-	it('should return not-found message from postalCodeLookup tool execute when address is null', async () => {
+	// 正常系: lookupAddress ツールの execute が住所が見つからない場合に案内文字列を返すことを検証する
+	it('should return not-found message from lookupAddress tool execute when address is null', async () => {
 		setupMockAgent([]);
 
 		const mockPostalCode = createLocalMockPostalCodeIntegration();
@@ -376,9 +376,9 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { postalCodeLookup?: { execute: (input: { zipCode: string }) => Promise<string> } };
+			tools?: { lookupAddress?: { execute: (input: { zipCode: string }) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.postalCodeLookup;
+		const toolConfig = ctorSettings?.tools?.lookupAddress;
 		const result = await toolConfig?.execute({ zipCode: '9999999' });
 
 		expect(result).toBe('該当する住所が見つかりませんでした');
@@ -401,9 +401,9 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { weather?: { execute: (input: { address: string }) => Promise<string> } };
+			tools?: { getWeather?: { execute: (input: { address: string }) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.weather;
+		const toolConfig = ctorSettings?.tools?.getWeather;
 		const result = await toolConfig?.execute({ address: '東京都千代田区' });
 
 		expect(result).toBe('東京都千代田区の現在の天気: Partly cloudy、気温: 15°C、湿度: 70%');
@@ -422,9 +422,9 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { weather?: { execute: (input: { address: string }) => Promise<string> } };
+			tools?: { getWeather?: { execute: (input: { address: string }) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.weather;
+		const toolConfig = ctorSettings?.tools?.getWeather;
 		const result = await toolConfig?.execute({ address: '不明な場所' });
 
 		expect(result).toBe('天気情報を取得できませんでした');
@@ -471,9 +471,9 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { getUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
+			tools?: { listUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.getUsers;
+		const toolConfig = ctorSettings?.tools?.listUsers;
 		const result = await toolConfig?.execute({});
 
 		expect(result).toBe('ID: user_01、メール: a@example.com\nID: user_02、メール: b@example.com');
@@ -492,9 +492,9 @@ describe('GeminiChatIntegration', () => {
 		}
 
 		const ctorSettings = vi.mocked(ToolLoopAgent).mock.lastCall?.[0] as {
-			tools?: { getUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
+			tools?: { listUsers?: { execute: (input: Record<string, never>) => Promise<string> } };
 		};
-		const toolConfig = ctorSettings?.tools?.getUsers;
+		const toolConfig = ctorSettings?.tools?.listUsers;
 		const result = await toolConfig?.execute({});
 
 		expect(result).toBe('ユーザーが登録されていません');

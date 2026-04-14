@@ -60,8 +60,7 @@ export default component$(() => {
 	return (
 		<main class={styles.container}>
 			<header class={styles.header}>
-				<h1 class={styles.title}>Welcome</h1>
-				<p class={styles.subtitle}>Minimal Cloudflare Worker Boilerplate</p>
+				<h1 class={styles.title}>ホーム</h1>
 			</header>
 
 			<Card>
@@ -69,25 +68,25 @@ export default component$(() => {
 					<InputField
 						autoComplete="email"
 						id="email"
-						label="Email Address"
+						label="メールアドレス"
 						name="email"
 						placeholder="you@example.com"
 						required
 						type="email"
 					/>
-					<Button type="submit">Register</Button>
+					<Button type="submit">登録</Button>
 				</Form>
 
 				{action.value && 'user' in action.value && (
 					<div style={{ marginTop: '1.5rem' }}>
-						<SuccessMessage>Registered successfully: {action.value.user.email}</SuccessMessage>
+						<SuccessMessage>登録しました: {action.value.user.email}</SuccessMessage>
 					</div>
 				)}
 			</Card>
 
 			<Card>
 				<h2 class={styles.sectionTitle}>
-					Registered Users
+					登録済みユーザー
 					<Badge>{users.length}</Badge>
 				</h2>
 
@@ -98,34 +97,31 @@ export default component$(() => {
 								<table class={styles.table}>
 									<thead>
 										<tr>
-											<th class={styles.th}>Email</th>
-											<th class={styles.th}>Created At</th>
-											<th class={styles.th}>Actions</th>
+											<th class={styles.th}>メールアドレス</th>
+											<th class={styles.th}>作成日</th>
+											<th class={styles.th}>操作</th>
 										</tr>
 									</thead>
 									<tbody>
-										{users.map(user => (
-											<tr class={styles.tr} key={user.id}>
-												<td class={styles.td}>{user.email}</td>
-												<td class={styles.td}>
-													{new Date(user.createdAt).toLocaleDateString('en-US', {
-														day: 'numeric',
-														hour: '2-digit',
-														minute: '2-digit',
-														month: 'short',
-														year: 'numeric',
-													})}
-												</td>
-												<td class={styles.td}>
-													<Form action={deleteAction}>
-														<input name="id" type="hidden" value={user.id} />
-														<button class={styles.deleteButton} type="submit">
-															Delete
-														</button>
-													</Form>
-												</td>
-											</tr>
-										))}
+										{users.map(user => {
+											const createdAt = new Date(user.createdAt);
+											const formattedDate = `${createdAt.getFullYear()}年${createdAt.getMonth() + 1}月${createdAt.getDate()}日`;
+
+											return (
+												<tr class={styles.tr} key={user.id}>
+													<td class={styles.td}>{user.email}</td>
+													<td class={styles.td}>{formattedDate}</td>
+													<td class={styles.td}>
+														<Form action={deleteAction}>
+															<input name="id" type="hidden" value={user.id} />
+															<button class={styles.deleteButton} type="submit">
+																削除
+															</button>
+														</Form>
+													</td>
+												</tr>
+											);
+										})}
 									</tbody>
 								</table>
 							</div>
@@ -134,7 +130,7 @@ export default component$(() => {
 
 					return (
 						<div class={styles.emptyState}>
-							<p>No users registered yet. Be the first!</p>
+							<p>ユーザーが登録されていません。</p>
 						</div>
 					);
 				})()}

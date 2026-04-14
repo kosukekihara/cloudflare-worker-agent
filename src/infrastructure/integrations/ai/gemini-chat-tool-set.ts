@@ -9,6 +9,7 @@ import type { GetUsersUseCase } from '~/application/use-cases/user/get-users.use
 import type { RegisterUserUseCase } from '~/application/use-cases/user/register-user.use-case';
 import type { UpdateUserUseCase } from '~/application/use-cases/user/update-user.use-case';
 import { UserNotFoundError } from '~/domain/errors/user-not-found.error';
+import { buildJstDateTimeString } from '~/infrastructure/integrations/ai/jst-datetime';
 
 /** buildGeminiChatToolSet に渡す依存関係 */
 export interface GeminiChatToolSetDeps {
@@ -26,6 +27,12 @@ export interface GeminiChatToolSetDeps {
  * Gemini チャット用の共有ツール群 (全エージェント種別で同一)
  */
 export function buildGeminiChatToolSet(deps: GeminiChatToolSetDeps) {
+	const currentTimeTool = tool({
+		description: '現在の日本時間 (JST) を返す。ユーザーが現在時刻・日付を知りたい場合に呼び出す。',
+		inputSchema: zodSchema(z.object({})),
+		execute: async () => buildJstDateTimeString(),
+	});
+
 	const postalCodeTool = tool({
 		description:
 			'ユーザーのメッセージに郵便番号が明示的に含まれている場合にのみ、郵便番号から住所を検索する。ユーザーが住所について質問していない場合は呼び出さない。',
@@ -150,11 +157,12 @@ export function buildGeminiChatToolSet(deps: GeminiChatToolSetDeps) {
 	return {
 		createUser: createUserTool,
 		deleteUser: deleteUserTool,
-		getUsers: getUsersTool,
-		postalCodeLookup: postalCodeTool,
+		getCurrentTime: currentTimeTool,
+		getWeather: weatherTool,
+		listUsers: getUsersTool,
+		lookupAddress: postalCodeTool,
 		searchSimilarMessages: searchSimilarMessagesTool,
 		updateUser: updateUserTool,
-		weather: weatherTool,
 	};
 }
 

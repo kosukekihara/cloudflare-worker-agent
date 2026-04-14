@@ -2,7 +2,6 @@ import { component$ } from '@builder.io/qwik';
 import {
 	type DocumentHead,
 	Form,
-	Link,
 	type RequestEventAction,
 	type RequestEventLoader,
 	routeAction$,
@@ -14,17 +13,21 @@ import styles from './index.module.css';
 import { getAgentHandler, updateAgentHandler } from './index.server';
 
 /** 利用可能なモデルの一覧 */
-const AVAILABLE_MODELS = [{ id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite' }] as const;
+const AVAILABLE_MODELS = [
+	{ id: 'openai:gpt-5.4-mini', label: 'GPT-5.4 Mini (OpenAI)' },
+	{ id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite' },
+] as const;
 
 /** 利用可能なツールの一覧 */
 const AVAILABLE_TOOLS = [
-	'postalCodeLookup',
-	'weather',
+	'lookupAddress',
+	'getCurrentTime',
+	'getWeather',
+	'listUsers',
+	'searchSimilarMessages',
 	'createUser',
-	'getUsers',
 	'updateUser',
 	'deleteUser',
-	'searchSimilarMessages',
 ] as const;
 
 /** getAgentHandler のラッパー。テストから直接呼び出し可能。 */
@@ -81,10 +84,7 @@ export default component$(() => {
 	return (
 		<main class={styles.container}>
 			<header class={styles.header}>
-				<Link class={styles.backLink} href="/agents">
-					← Back
-				</Link>
-				<h1 class={styles.title}>Edit Agent</h1>
+				<h1 class={styles.title}>エージェント編集</h1>
 			</header>
 
 			<Form action={action} class={styles.formSection}>
@@ -92,14 +92,14 @@ export default component$(() => {
 
 				<div class={styles.field}>
 					<label class={styles.label} for="name">
-						Name
+						エージェント名
 					</label>
 					<input class={styles.input} id="name" name="name" required type="text" value={agent.name} />
 				</div>
 
 				<div class={styles.field}>
 					<label class={styles.label} for="modelId">
-						Model
+						LLM モデル
 					</label>
 					<select class={styles.select} id="modelId" name="modelId" required>
 						{AVAILABLE_MODELS.map(model => (
@@ -112,7 +112,7 @@ export default component$(() => {
 
 				<div class={styles.field}>
 					<label class={styles.label} for="instruction">
-						Instruction
+						インストラクション
 					</label>
 					<textarea class={styles.textarea} id="instruction" name="instruction" required>
 						{agent.instruction}
@@ -120,7 +120,7 @@ export default component$(() => {
 				</div>
 
 				<div class={styles.field}>
-					<span class={styles.label}>Tools</span>
+					<span class={styles.label}>有効なツール</span>
 					<div class={styles.toolsGrid}>
 						{AVAILABLE_TOOLS.map(toolName => (
 							<label class={styles.toolItem} key={toolName}>
@@ -132,7 +132,7 @@ export default component$(() => {
 				</div>
 
 				<div class={styles.formActions}>
-					<Button type="submit">Save Changes</Button>
+					<Button type="submit">更新</Button>
 				</div>
 			</Form>
 		</main>
@@ -141,5 +141,5 @@ export default component$(() => {
 
 /** エージェント編集ページの meta 情報と title を定義する。 */
 export const head: DocumentHead = {
-	title: 'Edit Agent',
+	title: 'エージェント編集',
 };

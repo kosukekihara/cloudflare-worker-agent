@@ -44,54 +44,73 @@ export default component$(() => {
 	return (
 		<main class={styles.container}>
 			<header class={styles.header}>
-				<h1 class={styles.title}>Agents</h1>
+				<h1 class={styles.title}>エージェント管理</h1>
 				<Link href="/agents/new">
-					<Button type="button">+ New Agent</Button>
+					<Button type="button">新規作成</Button>
 				</Link>
 			</header>
 
-			{(() => {
-				if (agents.length > 0) {
+			<div class={styles.card}>
+				<div class={styles.cardHeader}>
+					<span class={styles.cardTitle}>エージェント一覧</span>
+					<span class={styles.badge}>{agents.length}</span>
+				</div>
+
+				{(() => {
+					if (agents.length > 0) {
+						return (
+							<table class={styles.table}>
+								<thead>
+									<tr>
+										<th class={styles.th}>名前</th>
+										<th class={styles.th}>モデル</th>
+										<th class={styles.th}>ツール数</th>
+										<th class={styles.th}>作成日</th>
+										<th class={styles.th}>操作</th>
+									</tr>
+								</thead>
+								<tbody>
+									{agents.map(agent => {
+										const createdAt = new Date(agent.createdAt);
+										const formattedDate = `${createdAt.getFullYear()}年${createdAt.getMonth() + 1}月${createdAt.getDate()}日`;
+
+										return (
+											<tr class={styles.tr} key={agent.id}>
+												<td class={styles.td}>{agent.name}</td>
+												<td class={styles.td}>{agent.modelId}</td>
+												<td class={styles.td}>{agent.enabledTools.length}</td>
+												<td class={styles.td}>{formattedDate}</td>
+												<td class={`${styles.td} ${styles.actionsCell}`}>
+													<Link class={styles.editLink} href={`/agents/${agent.id}/edit`}>
+														編集
+													</Link>
+													<Form action={deleteAction}>
+														<input name="id" type="hidden" value={agent.id} />
+														<button class={styles.deleteButton} type="submit">
+															削除
+														</button>
+													</Form>
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						);
+					}
+
 					return (
-						<div class={styles.agentList}>
-							{agents.map(agent => (
-								<div class={styles.agentCard} key={agent.id}>
-									<div class={styles.agentInfo}>
-										<p class={styles.agentName}>{agent.name}</p>
-										<div class={styles.agentMeta}>
-											<span>{agent.modelId}</span>
-											<span>{agent.enabledTools.length} tools</span>
-										</div>
-										<p class={styles.agentInstruction}>{agent.instruction}</p>
-									</div>
-									<div class={styles.agentActions}>
-										<Link class={styles.editLink} href={`/agents/${agent.id}/edit`}>
-											Edit
-										</Link>
-										<Form action={deleteAction}>
-											<input name="id" type="hidden" value={agent.id} />
-											<button class={styles.deleteButton} type="submit">
-												Delete
-											</button>
-										</Form>
-									</div>
-								</div>
-							))}
+						<div class={styles.emptyState}>
+							<p>エージェントがありません。最初のエージェントを作成してください。</p>
 						</div>
 					);
-				}
-
-				return (
-					<div class={styles.emptyState}>
-						<p>No agents yet. Create your first agent!</p>
-					</div>
-				);
-			})()}
+				})()}
+			</div>
 		</main>
 	);
 });
 
 /** エージェント一覧ページの meta 情報と title を定義する。 */
 export const head: DocumentHead = {
-	title: 'Agents',
+	title: 'エージェント管理',
 };

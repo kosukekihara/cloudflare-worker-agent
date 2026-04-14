@@ -1,24 +1,11 @@
 .container {
-	max-width: 640px;
+	max-width: 680px;
 	padding: 0 1.5rem;
 	margin: 4rem auto;
 }
 
 .header {
-	display: flex;
-	gap: 1rem;
-	align-items: center;
 	margin-bottom: 2rem;
-}
-
-.back-link {
-	font-size: 0.875rem;
-	color: #64748b;
-	text-decoration: none;
-
-	&:hover {
-		color: #0f172a;
-	}
 }
 
 .title {
@@ -102,7 +89,7 @@
 
 .tools-grid {
 	display: grid;
-	grid-template-columns: repeat(2, 1fr);
+	grid-template-columns: repeat(3, 1fr);
 	gap: 0.5rem;
 }
 
@@ -124,5 +111,4 @@
 
 .form-actions {
 	display: flex;
-	justify-content: flex-end;
 }

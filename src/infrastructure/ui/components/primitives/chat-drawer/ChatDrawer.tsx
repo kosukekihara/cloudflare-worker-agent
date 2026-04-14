@@ -173,18 +173,24 @@ export const ChatDrawer = component$<ChatDrawerProps>(({ agents }) => {
 							});
 						} else if (data.type === 'tool_call' && typeof data.toolName === 'string') {
 							const indicator = (() => {
-								if (data.toolName === 'weather') {
+								if (data.toolName === 'getWeather') {
 									return '天気情報を取得しています...';
 								} else if (data.toolName === 'createUser') {
 									return 'ユーザーを作成しています...';
-								} else if (data.toolName === 'getUsers') {
+								} else if (data.toolName === 'listUsers') {
 									return 'ユーザー一覧を取得しています...';
 								} else if (data.toolName === 'updateUser') {
 									return 'ユーザーを更新しています...';
 								} else if (data.toolName === 'deleteUser') {
 									return 'ユーザーを削除しています...';
-								} else {
+								} else if (data.toolName === 'lookupAddress') {
 									return '住所を調べています...';
+								} else if (data.toolName === 'getCurrentTime') {
+									return '現在時刻を取得しています...';
+								} else if (data.toolName === 'searchSimilarMessages') {
+									return '類似メッセージを検索しています...';
+								} else {
+									return 'ツールを実行しています...';
 								}
 							})();
 							messages.value = messages.value.map(m => {
@@ -352,6 +358,14 @@ export const ChatDrawer = component$<ChatDrawerProps>(({ agents }) => {
 										</option>
 									))}
 								</select>
+								<div class={styles.drawerAgentLinks}>
+									<a class={styles.drawerAgentLink} href="/agents">
+										一覧・管理
+									</a>
+									<a class={styles.drawerAgentLink} href="/agents/new">
+										＋ 新規作成
+									</a>
+								</div>
 							</div>
 						);
 					}
@@ -359,7 +373,7 @@ export const ChatDrawer = component$<ChatDrawerProps>(({ agents }) => {
 					return (
 						<div class={styles.drawerNoAgents}>
 							エージェントがありません。
-							<a class={styles.drawerNoAgentsLink} href="/agents">
+							<a class={styles.drawerNoAgentsLink} href="/agents/new">
 								作成する
 							</a>
 						</div>
