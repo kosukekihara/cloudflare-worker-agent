@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "cloudflare_worker_agent",
+  "project_id": "c5ebd3cb-a51a-4ccf-9b7a-8e7c9466c3a5"
+}

@@ -1,23 +1,34 @@
 {
-	"hooks": {
-		"PostToolUse": [
-			{
-				"hooks": [
-					{
-						"command": "bun run format $CLAUDE_FILE_PATHS || true",
-						"type": "command"
-					},
-					{
-						"command": "afplay -v 0.5 /System/Library/Sounds/Blow.aiff",
-						"type": "command"
-					}
-				],
-				"matcher": "Write|Edit"
-			}
-		]
-	},
-	"statusLine": {
-		"type": "command",
-		"command": "sh /Users/kihara/Repositories/cloudflare-worker-agent/.claude/statusline-command.sh"
-	}
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "bun run format $CLAUDE_FILE_PATHS || true",
+            "type": "command"
+          },
+          {
+            "command": "afplay -v 0.5 /System/Library/Sounds/Blow.aiff",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "bd prime --hook-json",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  },
+  "statusLine": {
+    "command": "sh /Users/kihara/Repositories/cloudflare-worker-agent/.claude/statusline-command.sh",
+    "type": "command"
+  }
 }
