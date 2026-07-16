@@ -3,5 +3,5 @@
   "backend": "dolt",
   "dolt_mode": "embedded",
   "dolt_database": "cloudflare_worker_agent",
-  "project_id": "c5ebd3cb-a51a-4ccf-9b7a-8e7c9466c3a5"
+  "project_id": "47de3252-8840-4122-808b-66d478abd613"
 }
